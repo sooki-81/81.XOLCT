@@ -1105,10 +1105,15 @@ pub fn run() {
                             if let Some(w) = app.get_webview_window("main") {
                                 if let Ok(hwnd_tauri) = w.hwnd() {
                                     use windows_sys::Win32::UI::WindowsAndMessaging::*;
+                                    use windows_sys::Win32::Graphics::Gdi::*;
                                     unsafe {
                                         let hwnd = hwnd_tauri.0 as isize;
                                         ShowWindow(hwnd, SW_HIDE);
                                         SetParent(hwnd, 0);
+                                        // Force full desktop repaint to clear WebView2 compositor artifact
+                                        let desktop = GetDesktopWindow();
+                                        InvalidateRect(desktop, std::ptr::null(), 1);
+                                        RedrawWindow(desktop, std::ptr::null(), 0, RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
                                     }
                                 }
                             }

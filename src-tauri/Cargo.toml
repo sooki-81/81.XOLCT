@@ -1,6 +1,6 @@
 [package]
 name = "xolct"
-version = "1.0.0"
+version = "1.0.1"
 description = "ХОЛСТ — персональная галерея цифрового искусства"
 authors = ["soominvision"]
 edition = "2021"
@@ -30,5 +30,6 @@ windows-sys = { version = "0.52", features = [
     "Win32_System_Threading",
     "Win32_System_Memory",
     "Win32_System_Diagnostics_Debug",
+    "Win32_Graphics_Gdi",
 ] }
 
