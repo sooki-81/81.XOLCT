@@ -1,0 +1,884 @@
+/* ─── Основная область (padding 10px создаёт отступы от краёв) ─────────────── */
+.dash-main {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  margin: 0 10px 10px;
+  padding: 10px;
+  gap: 10px;
+  position: relative;
+}
+
+/* ─── Левая боковая панель: настройки внешнего вида ────────────────────────── */
+.dash-sidebar {
+  width: 310px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  align-self: flex-start; /* блоки прижаты к верху, не растягиваются */
+}
+.dash-sidebar::-webkit-scrollbar { display: none; }
+
+/* ── Блок (верхний / нижний) ─── */
+.dash-sb-block {
+  background: var(--bg-second);
+  border-radius: 20px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dash-sb-block-title {
+  font-family: var(--font-main);
+  font-size: var(--text-l-size);   /* 16px */
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.2;
+}
+
+.dash-sb-sub-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash-sb-sub-label {
+  font-family: var(--font-main);
+  font-size: var(--text-m-size);   /* 14px */
+  font-weight: 400;
+  color: var(--fg-subtle);
+  line-height: 1.2;
+}
+
+/* ── Сетка карточек 2×2 ─── */
+.dash-sb-cards-grid {
+  display: grid;
+  grid-template-columns: 136px 136px;
+  gap: 5px;
+}
+
+/* ── Карточка (BG и Frame — общая структура) ─── */
+.dash-sb-card {
+  width: 136px;
+  height: 100px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+.dash-sb-card.selected {
+  border-color: var(--bg-accent-lime);
+}
+.dash-sb-card:hover:not(.selected) {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Область превью — заполняет оставшееся пространство выше лейбла */
+.dash-sb-card-preview {
+  flex: 1;
+  border-radius: 10px;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Лейбл карточки */
+.dash-sb-card-label {
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--fg-subtle);
+  padding: 4px 6px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.dash-sb-card.selected .dash-sb-card-label {
+  color: var(--fg);
+}
+
+/* ── Фоны превью (BG cards) ─── */
+.dash-sb-bg--dark       { background: linear-gradient(to bottom, #111111, #050505); }
+.dash-sb-bg--pixpix     { background-color: #0033bb; background-image: url('./bg-pixpix.jpg'); background-repeat: repeat; background-size: 80px auto; }
+.dash-sb-bg--fff        { background: #ffffff; }
+.dash-sb-bg--gradient81 { background: var(--gradient-accent); }
+
+/* ── Фоны превью (Frame cards) ─── */
+.dash-sb-frame--light       { background: #272727; }
+.dash-sb-frame--dark        { background: #050505; }
+.dash-sb-frame--gray        { background: linear-gradient(to bottom, #6b6b6b, #ffffff); }
+.dash-sb-frame--total-black { background: #000000; }
+
+/* Паддинг превью внутри frame-карточек (создаёт отступ сверху/снизу) */
+.dash-sb-frame-item .dash-sb-card-preview {
+  padding: 7px 0;
+}
+
+/* Миниатюра арта внутри frame-карточки */
+.dash-sb-frame-artwork {
+  height: 100%;
+  width: auto;
+  aspect-ratio: 3 / 4;
+  background: url('./preview-artwork.jpg') center / cover no-repeat;
+  background-color: #0044F1;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Скругление ─── */
+.dash-sb-radius-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.dash-sb-radius-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+
+.dash-sb-radius-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1.5px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.35);
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.dash-sb-radius-lbl {
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg-muted);
+  transition: color 0.15s;
+}
+
+.dash-sb-radius-item.selected .dash-sb-radius-icon {
+  border-color: var(--bg-accent-lime);
+  color: var(--fg);
+}
+.dash-sb-radius-item.selected .dash-sb-radius-lbl {
+  color: var(--fg);
+}
+.dash-sb-radius-item:hover:not(.selected) .dash-sb-radius-icon {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* ─── Правая колонка: управление ОЦИ ────────────────────────────────────────── */
+.dash-right {
+  flex: 1;
+  position: relative;   /* absolute-контейнер для viewport/track/bottom */
+  overflow: hidden;
+  min-width: 0;
+  border-radius: 20px;
+  background: #000000;
+  transition: background-color 0.25s, background-image 0.25s;
+}
+
+/* ─── Холст (вьюпорт) ──────────────────────────────────────────────────────── */
+.dash-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;     /* клиппинг по горизонтали и вертикали относительно dash-right */
+  cursor: default;
+}
+
+.dash-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  will-change: transform;
+}
+
+/* ─── Горизонтальный скролл-трек ───────────────────────────────────────────── */
+.dash-scroll-track {
+  position: absolute;
+  bottom: 6px;
+  left: 20px;
+  right: 20px;
+  height: 4px;
+  background: var(--scroll-bar-track, rgba(255,255,255,0.10));
+  border-radius: 2px;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.dash-scroll-thumb {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  min-width: 40px;
+  background: var(--scroll-bar-thumb, rgba(255,255,255,0.38));
+  border-radius: 2px;
+  cursor: grab;
+}
+.dash-scroll-thumb:active { cursor: grabbing; }
+
+/* ─── Вертикальный скролл-трек (внутри viewport) ───────────────────────────── */
+.dash-vscroll-track {
+  position: absolute;
+  right: 5px;
+  top: 6px;
+  bottom: 88px;
+  width: 4px;
+  background: var(--scroll-bar-track, rgba(255,255,255,0.10));
+  border-radius: 2px;
+  z-index: 5;
+  cursor: pointer;
+  display: none; /* показывается только когда есть что скроллить */
+}
+.dash-vscroll-track.visible { display: block; }
+
+.dash-vscroll-thumb {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  min-height: 40px;
+  background: var(--scroll-bar-thumb, rgba(255,255,255,0.38));
+  border-radius: 2px;
+  cursor: grab;
+}
+.dash-vscroll-thumb:active { cursor: grabbing; }
+
+/* ─── Нижняя панель ────────────────────────────────────────────────────────── */
+.dash-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 76px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dash-add-btn {
+  position: absolute;
+  left: 16px;
+  bottom: 14px;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  border: none;
+  background: var(--gradient-accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  isolation: isolate;
+  transition: box-shadow 0.3s ease;
+}
+.dash-add-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: var(--gradient-accent-hover);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.dash-add-btn:hover::after { opacity: 1; }
+.dash-add-btn > * { position: relative; z-index: 1; }
+
+.dash-save-btn {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 10px;
+  border: none;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--font-main);
+  font-size: 16px;
+  font-weight: 600;
+  background: #111111;
+  color: #656565;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.dash-save-btn[data-active="true"] {
+  background: #000718;
+  color: var(--fg);
+  border: 1px solid var(--bg-accent-blue);
+  cursor: pointer;
+}
+.dash-save-btn[data-active="true"] svg polyline {
+  stroke: var(--fg);
+  transition: stroke 0.2s;
+}
+.dash-save-btn[data-active="true"]:hover {
+  background: var(--bg-accent-blue);
+}
+
+/* ─── Карточки дашборда ────────────────────────────────────────────────────── */
+.dash-card {
+  position: absolute;
+  border-radius: var(--dash-card-preview-radius, 10px);
+  background: var(--dash-card-preview-bg, rgba(255, 255, 255, 0.12));
+  box-shadow: var(--dash-card-preview-shadow, 0 5px 10px rgba(0, 0, 0, 0.56));
+  cursor: grab;
+  user-select: none;
+}
+.dash-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0);
+  transition: background 0.15s;
+  pointer-events: none;
+  z-index: 0;
+}
+.dash-card:hover::before    { background: rgba(255, 255, 255, 0.08); }
+.dash-card.selected::before { background: rgba(255, 255, 255, 0.10); }
+.dash-card:active           { cursor: grabbing; }
+
+.dash-card-body {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--dash-card-preview-radius, 10px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 20px 20px 0;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.dash-card-image {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.dash-card-art {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+}
+
+.dash-card-label {
+  padding: 8px 0 14px;
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.dash-card-title {
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--card-title-color, var(--fg));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  width: 100%;
+}
+.dash-card-authors {
+  font-family: var(--font-main);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--card-authors-color, var(--fg-subtle));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  width: 100%;
+}
+
+.dash-card-delete {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 4;
+  pointer-events: auto;
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+.dash-card.selected .dash-card-delete {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dash-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #111111;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+  z-index: 4;
+  display: none;
+  pointer-events: auto;
+}
+.dash-card.selected .dash-handle { display: block; }
+
+.dash-handle-tl { top: -5px;    left: -5px;  cursor: nwse-resize; }
+.dash-handle-tr { top: -5px;    right: -5px; cursor: nesw-resize; }
+.dash-handle-bl { bottom: -5px; left: -5px;  cursor: nesw-resize; }
+.dash-handle-br { bottom: -5px; right: -5px; cursor: nwse-resize; }
+
+/* ─── Пустое состояние ─────────────────────────────────────────────────────── */
+.dash-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.dash-empty-text {
+  font-family: var(--font-main);
+  font-size: 15px;
+  color: var(--fg-muted);
+}
+
+/* ─── Оверлей ──────────────────────────────────────────────────────────────── */
+.dash-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 10;
+}
+.dash-overlay.hidden { display: none; }
+
+/* ─── Попап добавления объекта ─────────────────────────────────────────────── */
+.dash-popup {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 500px;
+  background: var(--bg);
+  border-radius: 20px;
+  z-index: 11;
+  padding: 32px 36px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.dash-popup.hidden { display: none; }
+
+.dash-popup-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.dash-popup-title {
+  font-family: var(--font-main);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--fg);
+  margin-bottom: 10px;
+}
+.dash-popup-platforms {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.dash-popup-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.dash-popup-close:hover { opacity: 1; }
+
+.dash-popup-desc {
+  font-family: var(--font-main);
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: -8px;
+}
+
+.dash-popup-platform {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.dash-popup-error {
+  font-family: var(--font-main);
+  font-size: 13px;
+  color: var(--color-error);
+  min-height: 0;
+  margin-top: -12px;
+}
+.dash-popup-error:empty { display: none; }
+
+.dash-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: dash-spin 0.7s linear infinite;
+}
+@keyframes dash-spin { to { transform: rotate(360deg); } }
+
+/* ─── Попап подтверждения удаления ────────────────────────────────────────── */
+.dash-confirm-popup {
+  width: 440px;
+  gap: 16px;
+}
+
+.dash-confirm-title {
+  font-family: var(--font-main);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.3;
+  margin: 0;
+}
+
+.dash-confirm-desc {
+  font-family: var(--font-main);
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0;
+}
+
+.dash-confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.dash-confirm-cancel {
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--fg-subtle);
+  font-family: var(--font-main);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.dash-confirm-cancel:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--fg);
+}
+
+.dash-confirm-delete {
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 10px;
+  border: 1px solid #FF453A;
+  background: rgba(255, 69, 58, 0.10);
+  color: #FF453A;
+  font-family: var(--font-main);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.dash-confirm-delete:hover {
+  background: #FF453A;
+  color: #ffffff;
+}
+
+/* ─── Попап верификации владения ───────────────────────────────────────────── */
+.dash-verify-popup {
+  width: 460px;
+  gap: 20px;
+}
+
+/* Кнопка закрыть — абсолютно в углу попапа */
+.dash-verify-close {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+}
+
+/* ── Шапка: иконка + название ─── */
+.dash-verify-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.dash-verify-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dash-verify-title {
+  font-family: var(--font-main);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.2;
+}
+
+.dash-verify-token-name {
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--fg-muted);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+.dash-verify-desc {
+  font-family: var(--font-main);
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0;
+}
+
+/* ── История кошельков ─── */
+.verify-wallet-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+.verify-wallet-history.hidden { display: none; }
+.verify-wallet-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.65);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.verify-wallet-tag:hover {
+  background: rgba(255,255,255,0.14);
+  border-color: rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.9);
+}
+
+/* ── Состояния (переключение видимости) ─── */
+.dash-verify-state { display: flex; flex-direction: column; gap: 16px; }
+.dash-verify-state.hidden { display: none; }
+
+/* ── Состояние: загрузка ─── */
+.dash-verify-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 0;
+}
+
+.dash-verify-loading-text {
+  font-family: var(--font-main);
+  font-size: 15px;
+  color: var(--fg-muted);
+}
+
+/* ── Состояние: успех ─── */
+.dash-verify-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 0 8px;
+}
+
+.dash-verify-result-title {
+  font-family: var(--font-main);
+  font-size: 20px;
+  font-weight: 500;
+  color: #30D158;
+}
+
+.dash-verify-result-addr {
+  font-family: var(--font-main);
+  font-size: 13px;
+  color: var(--fg-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 6px 14px;
+}
+
+/* ─── Бейдж верификации на карточке ────────────────────────────────────────── */
+/* Текстовая кнопка «Подтвердить владение» — под карточкой, отступ 7px */
+.dash-card-verify-btn {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.55);
+  font-family: var(--font-main);
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.dash-card.selected .dash-card-verify-btn { display: flex; }
+.dash-card-verify-btn:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: var(--fg);
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.dash-card-verified-badge {
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  z-index: 4;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #30D158;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.dash-card-verified-badge svg { display: block; }
+
+/* ─── Таймер пробного периода на карточке ──────────────────────────────────── */
+.dash-card-timer {
+  position: absolute;
+  /*
+   * padding-top карточки = 20px → это граница между рамкой и изображением.
+   * translateY(-50%) опускает центр badge ровно на эту линию:
+   * верхняя половина badge в области рамки, нижняя на арте.
+   */
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-50%);
+  z-index: 10;               /* выше .dash-card-body (нет явного z-index) */
+  background: #000000;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--font-main);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Блок «без подтверждения» в попапе верификации ───────────────────────── */
+.dash-verify-trial {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dash-verify-trial.hidden { display: none; }
+
+.dash-verify-trial-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.2);
+  font-family: var(--font-main);
+  font-size: 12px;
+}
+.dash-verify-trial-divider::before,
+.dash-verify-trial-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dash-verify-trial-btn {
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: var(--fg-subtle);
+  font-family: var(--font-main);
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.dash-verify-trial-btn:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.04);
+}
+.dash-verify-trial-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.dash-verify-quota {
+  font-family: var(--font-main);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.3);
+  text-align: center;
+}

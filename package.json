@@ -1,0 +1,14 @@
+{
+  "name": "c-usersuserdocumentsnft-wallpaper",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "release": "npm run tauri -- build && node scripts/copy-release.js"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "sharp": "^0.34.5"
+  }
+}

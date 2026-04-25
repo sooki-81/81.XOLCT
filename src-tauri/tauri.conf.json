@@ -1,0 +1,69 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "XOLCT",
+  "version": "1.0.0",
+  "identifier": "com.xolct.wallpaper",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "81.ХОЛСТ",
+        "width": 1920,
+        "height": 1080,
+        "x": 0,
+        "y": 0,
+        "decorations": false,
+        "transparent": false,
+        "resizable": false,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": false
+      },
+      {
+        "label": "welcome",
+        "url": "welcome.html",
+        "title": "81.ХОЛСТ",
+        "width": 1130,
+        "height": 750,
+        "center": true,
+        "decorations": false,
+        "transparent": true,
+        "resizable": false,
+        "skipTaskbar": false,
+        "visible": false,
+        "shadow": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwMUY3MkMyQ0E0MzRFQkEKUldTNlRrUEt3bklmSUdERi9NYlZqcmhGKzY0L2RjRVdKMW95VnkySUFqSVZHR0ZmbHhoL1R0YlcK",
+      "endpoints": [
+        "https://github.com/sooki-81/81.XOLCT/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

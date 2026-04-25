@@ -1,0 +1,188 @@
+/* ── Главная область ────────────────────────────────────── */
+.import-main {
+  flex: 1;
+  background: linear-gradient(to bottom, var(--bg-second) 0%, var(--bg) 100%);
+  border-radius: var(--radius-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Карточка по центру ─────────────────────────────────── */
+.import-card {
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 35px;
+}
+
+/* ── Блок с логотипами и текстом ────────────────────────── */
+.import-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  text-align: center;
+}
+
+.import-platforms {
+  display: flex;
+  align-items: center;
+  gap: 35px;
+}
+
+.import-platforms-x {
+  font-family: var(--font-main);
+  font-weight: var(--text-h2-weight);
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-lh);
+  color: var(--fg);
+}
+
+.import-title {
+  font-family: var(--font-main);
+  font-weight: var(--text-h2-weight);
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-lh);
+  color: var(--fg);
+}
+
+.import-desc {
+  font-family: var(--font-main);
+  font-weight: var(--text-m-weight);
+  font-size: var(--text-m-size);
+  line-height: var(--text-m-lh);
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* ── Инпут + кнопка ─────────────────────────────────────── */
+.import-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-l);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.import-input-row:focus-within {
+  border-color: var(--bg-accent-blue);
+}
+
+.import-input {
+  flex: 1;
+  height: 48px;
+  padding: 0 16px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-main);
+  font-weight: var(--text-h2-weight);
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-lh);
+  color: var(--fg);
+  caret-color: var(--bg-accent-blue);
+}
+
+.import-input::placeholder {
+  color: var(--fg-muted);
+}
+
+.import-submit-btn {
+  flex-shrink: 0;
+  width: 110px;              /* фиксированная ширина — не прыгает при лоудере */
+  height: 48px;
+  padding: 0;
+  background: #000718;
+  border: none;
+  border-left: 1px solid var(--bg-accent-blue);
+  border-radius: 0 var(--radius-l) var(--radius-l) 0;
+  color: var(--fg);
+  font-family: var(--font-main);
+  font-weight: var(--text-btn-weight);
+  font-size: var(--text-btn-size);
+  line-height: var(--text-btn-lh);
+  cursor: pointer;
+  transition: background 0.2s;
+  outline: 1px solid var(--bg-accent-blue);
+  outline-offset: -1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.import-submit-btn:hover:not(:disabled) {
+  background: var(--bg-accent-blue);
+}
+
+.import-submit-btn:disabled {
+  cursor: default;
+}
+
+/* ── Спиннер внутри кнопки ──────────────────────────────── */
+.import-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Ошибка под инпутом ─────────────────────────────────── */
+.import-error {
+  font-family: var(--font-main);
+  font-weight: var(--text-m-weight);
+  font-size: var(--text-m-size);
+  line-height: var(--text-m-lh);
+  color: var(--color-error);
+  margin-top: -20px; /* компенсирует gap карточки, прижимается к инпуту */
+  display: none;
+}
+
+.import-error.visible {
+  display: block;
+}
+
+/* ── Уведомление об успехе ──────────────────────────────── */
+.import-toast {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius-l);
+  font-family: var(--font-main);
+  font-weight: var(--text-btn-weight);
+  font-size: var(--text-btn-size);
+  line-height: var(--text-btn-lh);
+  color: var(--color-success);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+}
+
+.import-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.import-toast-check {
+  flex-shrink: 0;
+}
+
+/* Чтобы position: absolute работал */
+.import-main {
+  position: relative;
+}

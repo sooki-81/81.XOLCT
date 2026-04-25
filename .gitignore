@@ -1,0 +1,34 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Signing keys — NEVER commit private key
+.tauri/signing-key
+
+# Release binaries — distribute separately
+releases/*.msi
+*.msi
+
+# Rust build artifacts (very large, not needed in repo)
+src-tauri/target/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

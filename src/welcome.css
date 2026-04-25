@@ -1,0 +1,267 @@
+.welcome-body {
+  background: transparent;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.welcome-screen {
+  width: 1130px;
+  height: 750px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Шапка ──────────────────────────────────────────────── */
+.welcome-header {
+  flex-shrink: 0;
+  height: 64px;
+  padding: 16px 16px 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 26px;
+  cursor: grab;
+}
+
+.welcome-header:active {
+  cursor: grabbing;
+}
+
+/* Кнопки внутри хедера не участвуют в drag */
+.welcome-header .welcome-logo,
+.welcome-header .window-controls,
+.welcome-header .wc-btn {
+  cursor: default;
+}
+
+.welcome-logo {
+  display: flex;
+  align-items: center;
+}
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+/* Кнопки управления окном: default белые, hover — серые */
+.wc-btn {
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.wc-btn svg path,
+.wc-btn svg rect,
+.wc-btn svg line,
+.wc-btn svg polyline {
+  transition: stroke 0.15s, fill 0.15s;
+}
+
+.wc-btn.wc-close:hover svg line { stroke: var(--fg-muted); }
+.wc-btn.wc-minimize:hover svg rect { fill: var(--fg-muted); }
+.wc-btn.wc-settings { margin-right: 10px; }
+.wc-btn.wc-settings:hover svg path { fill: var(--fg-muted); }
+
+/* ── Заголовок + кнопка ─────────────────────────────────── */
+.welcome-hero {
+  flex-shrink: 0;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 25px;
+}
+
+.welcome-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.welcome-title {
+  font-family: var(--font-main);
+  font-weight: var(--text-h2-weight);
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-lh);
+  color: var(--fg);
+}
+
+.welcome-subtitle {
+  font-family: var(--font-main);
+  font-weight: var(--text-l-weight);
+  font-size: var(--text-l-size);
+  line-height: var(--text-l-lh);
+  color: var(--fg-subtle);
+}
+
+/* Кнопка «Начать» — акцентный градиент */
+.welcome-start-btn {
+  flex-shrink: 0;
+  height: 56px;
+  padding: 16px 30px;
+  border-radius: var(--radius-l);
+  border: none;
+  background: var(--gradient-accent);
+  color: var(--fg);
+  font-family: var(--font-main);
+  font-weight: var(--text-btn-weight);
+  font-size: var(--text-btn-size);
+  line-height: var(--text-btn-lh);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  position: relative;
+  isolation: isolate;
+  transition: box-shadow 0.4s ease;
+}
+
+/* Градиент hover слоем поверх — CSS не умеет анимировать gradient,
+   поэтому ховер-градиент fade-in через opacity псевдоэлемента */
+.welcome-start-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-l);
+  background: var(--gradient-accent-hover);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.welcome-start-btn:hover::after {
+  opacity: 1;
+}
+
+.welcome-start-btn:hover {
+  box-shadow: 0 8px 40px rgba(0, 68, 241, 0.18),
+              0 4px 60px rgba(195, 247, 58, 0.10);
+}
+
+/* Иконка и текст поверх псевдоэлемента */
+.welcome-start-btn > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Превью стены ───────────────────────────────────────── */
+.welcome-preview {
+  flex: 1;
+  margin: 0 10px 10px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--bg-second);
+}
+
+.welcome-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── Компонент: поле ввода ссылки ──────────────────────────── */
+.object-link-input {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-l);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.object-link-input:focus-within {
+  border-color: var(--bg-accent-blue);
+}
+.object-link-input__field {
+  flex: 1;
+  height: 48px;
+  padding: 0 16px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-main);
+  font-size: var(--text-h2-size);
+  font-weight: var(--text-h2-weight);
+  color: var(--fg);
+  caret-color: var(--bg-accent-blue);
+}
+.object-link-input__field::placeholder { color: var(--fg-muted); }
+/* Кнопка внутри object-link-input — сброс скруглений, левая граница */
+.object-link-input .secondary-btn {
+  border-radius: 0 var(--radius-l) var(--radius-l) 0;
+  border: none;
+  border-left: 1px solid var(--bg-accent-blue);
+  outline: 1px solid var(--bg-accent-blue);
+  outline-offset: -1px;
+  width: 110px;
+  padding: 0;
+}
+
+/* ── Компонент: вторичная кнопка ────────────────────────────── */
+.secondary-btn {
+  flex-shrink: 0;
+  height: 48px;
+  padding: 0 20px;
+  border-radius: var(--radius-l);
+  border: 1px solid var(--bg-accent-blue);
+  background: #000718;
+  color: var(--fg);
+  font-family: var(--font-main);
+  font-weight: var(--text-btn-weight);
+  font-size: var(--text-btn-size);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.secondary-btn:hover:not(:disabled) { background: var(--bg-accent-blue); }
+.secondary-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Компонент: кнопка с одной иконкой ─────────────────────── */
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  background: #000000;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.icon-btn:hover {
+  background: #111111;
+  border-color: #3d3d3d;
+}
+/* SVG внутри icon-btn: иконка #656565 → белая при hover */
+.icon-btn svg path,
+.icon-btn svg line,
+.icon-btn svg polyline,
+.icon-btn svg rect {
+  stroke: #656565;
+  transition: stroke 0.15s;
+}
+.icon-btn:hover svg path,
+.icon-btn:hover svg line,
+.icon-btn:hover svg polyline,
+.icon-btn:hover svg rect {
+  stroke: #ffffff;
+}

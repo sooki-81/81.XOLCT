@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "welcome",
+  "description": "Capability for the welcome window",
+  "windows": ["welcome"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-hide",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "core:event:allow-emit",
+    "core:event:allow-listen",
+    "updater:allow-check",
+    "updater:allow-download-and-install"
+  ]
+}

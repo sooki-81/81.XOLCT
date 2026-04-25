@@ -1,0 +1,100 @@
+@font-face {
+  font-family: 'Involve';
+  src: url('./fonts/Involve-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Involve';
+  src: url('./fonts/Involve-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000000;
+  user-select: none;
+  cursor: default;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+#wall {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 160px;
+  gap: 80px;
+  background: #000000;
+  will-change: transform;
+  transform: translate3d(0,0,0); /* держит GPU-слой тёплым между скроллами */
+  backface-visibility: hidden;   /* ещё один hint для compositor */
+}
+
+.card-wrapper {
+  flex-shrink: 0;
+  position: relative;
+  contain: layout style;
+}
+
+
+.frame-mat {
+  position: relative;
+  border-radius: var(--card-radius, 10px);
+  overflow: hidden;
+  background: var(--card-frame-bg, #272727);
+  box-shadow: var(--card-shadow, 0 6px 24px rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.75));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* padding и gap задаются через JS */
+}
+
+.artwork-inner {
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.card-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.card-title {
+  font-family: var(--font-main);
+  font-weight: 500;
+  font-size: 11pt;
+  color: var(--card-title-color, var(--fg));
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.card-authors {
+  font-family: var(--font-main);
+  font-weight: 400;
+  font-size: 9pt;
+  color: var(--card-authors-color, var(--fg-subtle));
+  text-align: center;
+  white-space: nowrap;
+  width: 100%;
+}

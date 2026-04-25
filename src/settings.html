@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="welcome.css" />
+    <link rel="stylesheet" href="settings.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ХОЛСТ — Настройки</title>
+  </head>
+  <body class="welcome-body">
+    <div class="welcome-screen">
+
+      <!-- Шапка -->
+      <header class="welcome-header" data-tauri-drag-region>
+        <div class="welcome-logo">
+          <svg width="185" height="32" viewBox="0 0 283 49" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M52.3221 14.8382C57.0115 15.6727 61.9525 16.4663 68.1397 16.812L54.4132 40.1306C65.142 39.1286 72.911 35.6603 73.0959 31.218C73.2017 28.6745 70.8034 26.2423 66.7428 24.2727L69.5546 19.4958C74.38 20.9919 78.0919 22.331 80.1133 23.1427C86.6358 26.2974 90.4851 30.1842 90.3162 34.2465C89.9364 43.3745 69.4118 49.9314 44.4732 48.8916C19.5346 47.8518 -0.374311 39.6091 0.00534077 30.481C0.248421 24.6388 15.0459 22.0051 30.6664 20.612V22.2661C23.9602 23.868 17.4224 26.1333 17.3077 28.8919C17.0747 34.4946 28.9918 39.5575 44.0633 40.3253L48.386 26.9853C42.2421 28.0363 40.813 28.4889 33.2471 28.1735V21.6816C33.247 21.6816 33.2469 21.6817 33.2467 21.6817V20.403C35.4884 20.4965 37.4343 20.5527 39.1441 20.5409H39.1439C42.8656 20.5152 45.4684 20.1655 47.5673 19.1649H47.5671C49.3819 18.2997 50.8198 16.9481 52.2784 14.8992H52.2786C52.293 14.8789 52.3077 14.8586 52.3221 14.8382ZM5.71879 2.72179C6.55398 -1.397 26.7458 -0.770395 50.8187 4.12149C74.8916 9.01339 93.7298 16.3181 92.8949 20.437C91.9131 24.1917 77.6237 21.1286 70.4481 17.9779L71.11 16.8536C75.2629 16.7615 75.718 15.9384 75.7884 15.5912C76.224 13.4418 64.8405 9.31434 50.3625 6.37223C35.8844 3.43011 23.7942 2.78757 23.3584 4.93697C22.9232 7.0864 34.3066 11.2138 48.7843 14.1558C49.0218 14.2041 49.2588 14.2527 49.4952 14.3017C48.0764 16.0549 46.7455 16.9041 44.9171 17.3877C44.0684 17.6122 43.0993 17.7617 41.9485 17.8514C38.6759 17.0596 35.9128 16.3462 34.2621 15.9011C17.0514 11.3855 5.04869 6.0276 5.71879 2.72179Z" fill="white"/>
+            <path d="M269.163 11.5435H261.774V6.05139H282.294V11.5435H274.955V42.9486H269.163V11.5435Z" fill="white"/>
+            <path d="M259.494 32.8631C257.896 36.2915 255.616 38.9377 252.654 40.8017C249.724 42.6657 246.346 43.5977 242.518 43.5977C239.822 43.5977 237.292 43.0984 234.929 42.0999C232.566 41.1013 230.502 39.7532 228.738 38.0556C227.007 36.3248 225.642 34.2943 224.644 31.9643C223.645 29.6343 223.146 27.1379 223.146 24.475C223.146 21.8122 223.628 19.3324 224.594 17.0357C225.592 14.7057 226.94 12.6752 228.638 10.9444C230.369 9.21353 232.383 7.86546 234.679 6.90017C237.009 5.9016 239.506 5.40231 242.169 5.40231C244.099 5.40231 245.946 5.65196 247.711 6.15124C249.475 6.65053 251.089 7.36617 252.554 8.29817C254.052 9.23018 255.383 10.3785 256.548 11.7432C257.713 13.0747 258.678 14.5892 259.444 16.2868H253.003C251.672 14.4228 250.14 13.0747 248.41 12.2425C246.712 11.3771 244.682 10.9444 242.318 10.9444C240.421 10.9444 238.657 11.2939 237.026 11.9929C235.395 12.6586 233.98 13.5906 232.782 14.7889C231.617 15.9872 230.685 17.4185 229.986 19.0828C229.32 20.7138 228.987 22.4945 228.987 24.4251C228.987 26.3224 229.337 28.1032 230.036 29.7675C230.735 31.3985 231.7 32.8298 232.932 34.0613C234.163 35.2929 235.595 36.2748 237.226 37.0071C238.857 37.7061 240.587 38.0556 242.418 38.0556C244.482 38.0556 246.313 37.6562 247.91 36.8573C249.541 36.0585 251.172 34.7271 252.803 32.8631H259.494Z" fill="white"/>
+            <path d="M200.217 6.05139H205.21L220.787 42.9486H214.496L202.713 13.6905L190.93 42.9486H184.639L200.217 6.05139Z" fill="white"/>
+            <path d="M143.718 24.525C143.718 21.8288 144.218 19.3324 145.216 17.0357C146.248 14.7057 147.629 12.6752 149.36 10.9444C151.124 9.21353 153.205 7.86546 155.601 6.90017C157.998 5.9016 160.561 5.40231 163.29 5.40231C165.92 5.40231 168.383 5.9016 170.68 6.90017C173.01 7.89874 175.024 9.26346 176.721 10.9943C178.452 12.7252 179.817 14.7556 180.815 17.0856C181.814 19.3823 182.313 21.8455 182.313 24.475C182.313 27.1379 181.814 29.6343 180.815 31.9643C179.817 34.2943 178.452 36.3248 176.721 38.0556C175.024 39.7532 173.01 41.1013 170.68 42.0999C168.35 43.0984 165.837 43.5977 163.14 43.5977C160.444 43.5977 157.915 43.0984 155.551 42.0999C153.188 41.1013 151.124 39.7532 149.36 38.0556C147.629 36.3248 146.248 34.2943 145.216 31.9643C144.218 29.6343 143.718 27.1546 143.718 24.525ZM149.56 24.475C149.56 26.3723 149.909 28.1531 150.608 29.8174C151.341 31.4484 152.306 32.8797 153.504 34.1113C154.736 35.3428 156.167 36.3081 157.798 37.0071C159.462 37.7061 161.243 38.0556 163.14 38.0556C165.005 38.0556 166.752 37.7061 168.383 37.0071C170.014 36.3081 171.429 35.3595 172.627 34.1612C173.825 32.9629 174.757 31.5483 175.423 29.9173C176.122 28.253 176.471 26.4722 176.471 24.5749C176.471 22.6443 176.122 20.8469 175.423 19.1826C174.724 17.5183 173.759 16.087 172.527 14.8888C171.329 13.6572 169.898 12.6919 168.233 11.9929C166.569 11.2939 164.771 10.9444 162.841 10.9444C161.01 10.9444 159.279 11.3105 157.648 12.0428C156.051 12.7418 154.653 13.7071 153.454 14.9387C152.256 16.137 151.307 17.5683 150.608 19.2325C149.909 20.8635 149.56 22.611 149.56 24.475Z" fill="white"/>
+            <path d="M121.792 24.4251L109.41 6.05139H116.3L125.287 19.582L134.424 6.05139H141.114L128.682 24.4251L141.364 42.9486H134.624L125.287 29.2183L116.05 42.9486H109.16L121.792 24.4251Z" fill="white"/>
+            <path d="M98.9608 36.6077H104.603V42.9486H98.9608V36.6077Z" fill="white"/>
+          </svg>
+        </div>
+        <div class="window-controls">
+          <button class="wc-btn wc-minimize" id="btn-minimize" title="Свернуть">
+            <svg width="16" height="2" viewBox="0 0 16 2" fill="none"><rect width="16" height="2" fill="white"/></svg>
+          </button>
+          <button class="wc-btn wc-maximize" id="btn-maximize" title="Развернуть">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="0.5" y="0.5" width="13" height="13" stroke="#656565" stroke-width="2"/></svg>
+          </button>
+          <button class="wc-btn wc-close" id="btn-close" title="Закрыть">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <line x1="0" y1="0" x2="14" y2="14" stroke="white" stroke-width="2"/>
+              <line x1="14" y1="0" x2="0" y2="14" stroke="white" stroke-width="2"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Тело настроек -->
+      <div class="settings-body">
+
+        <!-- Кнопка назад -->
+        <button class="settings-back" id="settings-back">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span data-i18n="settings.back">Назад</span>
+        </button>
+
+        <!-- ── Вид ── -->
+        <section class="settings-section">
+          <h2 class="settings-section-title" data-i18n="settings.section.view">Вид</h2>
+          <div class="settings-toggles">
+
+            <div class="settings-toggle-row">
+              <span class="settings-toggle-label" data-i18n="settings.autostart">Автозапуск при входе в систему</span>
+              <label class="settings-toggle">
+                <input type="checkbox" id="toggle-autostart" />
+                <span class="settings-toggle-track"></span>
+              </label>
+            </div>
+
+            <div class="settings-toggle-row">
+              <span class="settings-toggle-label" data-i18n="settings.icon_underlays">Подложки под ярлыки рабочего стола</span>
+              <label class="settings-toggle">
+                <input type="checkbox" id="toggle-icon-underlays" />
+                <span class="settings-toggle-track"></span>
+              </label>
+            </div>
+
+            <div class="settings-toggle-row">
+              <span class="settings-toggle-label" data-i18n="settings.lang.label">Язык</span>
+              <div class="settings-lang-switcher">
+                <button class="settings-lang-btn" data-lang-btn="ru">RU</button>
+                <button class="settings-lang-btn" data-lang-btn="en">EN</button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ── Горячие клавиши ── -->
+        <section class="settings-section">
+          <h2 class="settings-section-title" data-i18n="settings.section.hotkeys">Горячие клавиши</h2>
+          <div class="settings-hotkeys">
+
+            <!-- Пара: открытие + ярлыки -->
+            <div class="settings-hotkey-pair">
+              <div class="settings-hotkey-row">
+                <span class="settings-hotkey-label" data-i18n="settings.hk.open">Открытие приложения</span>
+                <input class="settings-hotkey-field" id="hk-open" readonly />
+              </div>
+              <div class="settings-hotkey-row">
+                <span class="settings-hotkey-label" data-i18n="settings.hk.desktop">Скрыть / показать ярлыки рабочего стола</span>
+                <input class="settings-hotkey-field" id="hk-desktop" readonly />
+              </div>
+            </div>
+
+            <!-- Пара: влево + вправо -->
+            <div class="settings-hotkey-pair">
+              <div class="settings-hotkey-row">
+                <span class="settings-hotkey-label" data-i18n="settings.hk.left">Пролистывание галереи влево</span>
+                <input class="settings-hotkey-field" id="hk-left" readonly />
+              </div>
+              <div class="settings-hotkey-row">
+                <span class="settings-hotkey-label" data-i18n="settings.hk.right">Пролистывание галереи вправо</span>
+                <input class="settings-hotkey-field" id="hk-right" readonly />
+              </div>
+            </div>
+
+            <!-- Пара: вверх + вниз -->
+            <div class="settings-hotkey-pair">
+              <div class="settings-hotkey-row">
+                <span class="settings-hotkey-label" data-i18n="settings.hk.up">Прокрутка галереи вверх</span>
+                <input class="settings-hotkey-field" id="hk-up" readonly />
+              </div>
+              <div class="settings-hotkey-row">
+                <span class="settings-hotkey-label" data-i18n="settings.hk.down">Прокрутка галереи вниз</span>
+                <input class="settings-hotkey-field" id="hk-down" readonly />
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ── Контакты и поддержка ── -->
+        <section class="settings-section">
+          <h2 class="settings-section-title" data-i18n="settings.section.contacts">Контакты и поддержка</h2>
+          <div class="settings-contacts">
+
+            <div class="settings-contact-row">
+              <span class="settings-contact-label" data-i18n="settings.contact.email">Почта</span>
+              <a class="settings-contact-link" href="mailto:soominvision@gmail.com">soominvision@gmail.com</a>
+            </div>
+
+            <div class="settings-contact-row">
+              <span class="settings-contact-label" data-i18n="settings.contact.telegram">Telegram</span>
+              <a class="settings-contact-link" href="https://t.me/EightyOneScore" target="_blank">@EightyOneScore</a>
+            </div>
+
+          </div>
+
+          <div class="settings-donations-title" data-i18n="settings.donate.title">Поддержать донатом</div>
+          <div class="settings-donations">
+
+            <div class="settings-donation-row">
+              <span class="settings-donation-network">USDT (TRC20)</span>
+              <span class="settings-donation-addr" id="donate-usdt">TPfwfcKior3PNWYrisDdAwcoS49dGeSE6x</span>
+              <button class="settings-copy-btn" data-copy="donate-usdt" data-i18n="settings.copy">Скопировать</button>
+            </div>
+
+            <div class="settings-donation-row">
+              <span class="settings-donation-network">TON</span>
+              <span class="settings-donation-addr" id="donate-ton">UQChZxGrUrLqcwc7HAqukeiY6eIWLMlaDnaJaZBAps9yLdBw</span>
+              <button class="settings-copy-btn" data-copy="donate-ton" data-i18n="settings.copy">Скопировать</button>
+            </div>
+
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <script type="module" src="welcome.js"></script>
+    <script type="module" src="settings.js"></script>
+  </body>
+</html>

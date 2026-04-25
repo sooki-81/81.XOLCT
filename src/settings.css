@@ -1,0 +1,293 @@
+/* ─── Тело настроек ─────────────────────────────────────────────────────────── */
+.settings-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  scrollbar-width: none;
+}
+.settings-body::-webkit-scrollbar { display: none; }
+
+/* ─── Кнопка «Назад» ────────────────────────────────────────────────────────── */
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  font-family: var(--font-main);
+  font-size: var(--text-l-size);
+  font-weight: var(--text-l-weight);
+  color: var(--fg-subtle);
+  transition: color 0.15s;
+  align-self: flex-start;
+}
+.settings-back svg path { transition: stroke 0.15s; }
+.settings-back:hover { color: var(--fg); }
+
+/* ─── Секция ─────────────────────────────────────────────────────────────────── */
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-section-title {
+  font-family: var(--font-main);
+  font-size: var(--text-h2-size);
+  font-weight: var(--text-h2-weight);
+  color: var(--fg);
+  margin: 0;
+}
+
+/* ─── Переключатели (toggles) ────────────────────────────────────────────────── */
+.settings-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-toggle-label {
+  font-family: var(--font-main);
+  font-size: var(--text-m-size);
+  font-weight: 400;
+  color: var(--fg);
+  line-height: 1.3;
+}
+
+.settings-toggle {
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.settings-toggle-track {
+  display: block;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--stroke, #2e2e2e);
+  position: relative;
+  transition: background 0.2s;
+}
+
+.settings-toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #555;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.settings-toggle input:checked + .settings-toggle-track {
+  background: rgba(195, 247, 58, 0.18);
+}
+
+.settings-toggle input:checked + .settings-toggle-track::after {
+  transform: translateX(20px);
+  background: var(--bg-accent-lime);
+}
+
+/* ─── Переключатель языка ────────────────────────────────────────────────────── */
+.settings-lang-switcher {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.settings-lang-btn {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.settings-lang-btn:hover {
+  color: var(--fg);
+  border-color: rgba(255,255,255,0.3);
+}
+.settings-lang-btn.active {
+  border-color: var(--bg-accent-lime);
+  color: var(--bg-accent-lime);
+  background: rgba(195, 247, 58, 0.07);
+}
+
+/* ─── Горячие клавиши ────────────────────────────────────────────────────────── */
+.settings-hotkeys {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-hotkey-pair {
+  display: flex;
+  gap: 16px;
+}
+.settings-hotkey-pair .settings-hotkey-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-hotkey-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-hotkey-label {
+  font-family: var(--font-main);
+  font-size: var(--text-m-size);
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+
+.settings-hotkey-field {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-l);
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-main);
+  font-size: var(--text-l-size);
+  font-weight: 400;
+  outline: none;
+  cursor: pointer;
+  caret-color: transparent;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.settings-hotkey-field:focus {
+  border-color: var(--bg-accent-blue);
+  background: rgba(0, 68, 241, 0.06);
+  cursor: text;
+  outline: none;
+}
+.settings-hotkey-field.capturing {
+  border-color: var(--bg-accent-lime);
+  background: rgba(195, 247, 58, 0.05);
+  color: var(--fg-muted);
+  letter-spacing: 0.05em;
+}
+
+/* ─── Контакты ───────────────────────────────────────────────────────────────── */
+.settings-contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-contact-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-contact-label {
+  font-family: var(--font-main);
+  font-size: var(--text-m-size);
+  font-weight: 400;
+  color: var(--fg-muted);
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.settings-contact-link {
+  font-family: var(--font-main);
+  font-size: var(--text-m-size);
+  font-weight: 400;
+  color: var(--bg-accent-blue, #0044f1);
+  text-decoration: none;
+}
+.settings-contact-link:hover { text-decoration: underline; }
+
+/* ─── Донаты ─────────────────────────────────────────────────────────────────── */
+.settings-donations-title {
+  font-family: var(--font-main);
+  font-size: var(--text-m-size);
+  font-weight: 400;
+  color: var(--fg-muted);
+  margin-top: 4px;
+}
+
+.settings-donations {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-donation-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-l);
+  border: 1px solid var(--stroke);
+}
+
+.settings-donation-network {
+  font-family: var(--font-main);
+  font-size: var(--text-m-size);
+  font-weight: 600;
+  color: var(--fg);
+  width: 110px;
+  flex-shrink: 0;
+}
+
+.settings-donation-addr {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--fg-muted);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-copy-btn {
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--radius-m, 8px);
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--fg-subtle);
+  font-family: var(--font-main);
+  font-size: 11px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.settings-copy-btn:hover {
+  color: var(--fg);
+  border-color: var(--fg-subtle);
+}

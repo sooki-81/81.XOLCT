@@ -1,0 +1,1131 @@
+use tauri::{
+    menu::{CheckMenuItem, Menu, MenuItem},
+    tray::TrayIconBuilder,
+    Manager,
+};
+use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::sync::Mutex;
+
+// ─── Windows: встраивание окна в рабочий стол ────────────────────────────────
+#[cfg(target_os = "windows")]
+mod wallpaper {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::*;
+    use windows_sys::Win32::UI::WindowsAndMessaging::*;
+
+    fn wstr(s: &str) -> Vec<u16> {
+        OsStr::new(s).encode_wide().chain(Some(0)).collect()
+    }
+
+    static mut WORKER_W: HWND = 0;
+
+    unsafe extern "system" fn find_worker_w(hwnd: HWND, _param: LPARAM) -> BOOL {
+        let shell_view = FindWindowExW(
+            hwnd, 0,
+            wstr("SHELLDLL_DefView").as_ptr(),
+            std::ptr::null(),
+        );
+        if shell_view != 0 {
+            WORKER_W = FindWindowExW(0, hwnd, wstr("WorkerW").as_ptr(), std::ptr::null());
+            return FALSE;
+        }
+        TRUE
+    }
+
+    pub unsafe fn embed_in_desktop(hwnd: HWND) {
+        let progman = FindWindowW(wstr("Progman").as_ptr(), std::ptr::null());
+        if progman == 0 {
+            eprintln!("[wallpaper] Ошибка: окно Progman не найдено");
+            return;
+        }
+
+        let mut result: usize = 0;
+        SendMessageTimeoutW(progman, 0x052C, 0, 0, SMTO_NORMAL, 1000, &mut result as *mut usize as *mut _);
+
+        WORKER_W = 0;
+        EnumWindows(Some(find_worker_w), 0);
+        let parent = if WORKER_W != 0 { WORKER_W } else { progman };
+
+        let screen_w = GetSystemMetrics(SM_CXSCREEN);
+        let screen_h = GetSystemMetrics(SM_CYSCREEN);
+
+        SetParent(hwnd, parent);
+        SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, screen_w, screen_h, SWP_NOACTIVATE);
+        ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+
+        println!("[wallpaper] Окно встроено в рабочий стол ({}x{})", screen_w, screen_h);
+    }
+}
+
+// ─── Состояние трея ───────────────────────────────────────────────────────────
+struct TrayState {
+    autostart_item: Mutex<CheckMenuItem<tauri::Wry>>,
+}
+
+// ─── Состояние горячих клавиш ─────────────────────────────────────────────────
+struct HotkeyState {
+    open:    Mutex<String>,
+    left:    Mutex<String>,
+    right:   Mutex<String>,
+    desktop: Mutex<String>,
+    up:      Mutex<String>,
+    down:    Mutex<String>,
+}
+
+// ─── Структура токена ─────────────────────────────────────────────────────────
+fn default_scale() -> f64 { 1.0 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ArtworkToken {
+    pub id: String,
+    pub name: String,
+    pub contract: String,
+    pub token_id: String,
+    pub display_uri: String,
+    pub creators: Vec<String>,
+    #[serde(default = "default_scale")]
+    pub wall_scale: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dash_x: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dash_y: Option<f64>,
+    #[serde(default)]
+    pub verified: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verified_address: Option<String>,
+    /// Unix-timestamp (сек) когда истекает пробный период; None = бессрочно
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trial_expires_at: Option<u64>,
+    /// Источник: "objkt" | "pinterest" | "web"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+}
+
+// ─── Настройки приложения ─────────────────────────────────────────────────────
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn default_wall_bg()          -> String { "dark".to_string() }
+fn default_card_frame()       -> String { "light".to_string() }
+fn default_card_radius()      -> String { "L".to_string() }
+fn default_glow_enabled()     -> bool   { true }
+fn default_shortcut_open()    -> String { "ctrl+alt+z".to_string() }
+fn default_shortcut_left()    -> String { "ctrl+alt+a".to_string() }
+fn default_shortcut_right()   -> String { "ctrl+alt+d".to_string() }
+fn default_shortcut_desktop() -> String { "ctrl+alt+h".to_string() }
+fn default_shortcut_up()      -> String { "ctrl+alt+w".to_string() }
+fn default_shortcut_down()    -> String { "ctrl+alt+s".to_string() }
+fn default_trial_reset_at()      -> u64  { 0 }
+fn default_trial_used()          -> u32  { 0 }
+fn default_icon_underlays()      -> bool { true }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AppSettings {
+    #[serde(default = "default_wall_bg")]
+    pub wall_background: String,
+    #[serde(default = "default_card_frame")]
+    pub card_frame: String,
+    #[serde(default = "default_card_radius")]
+    pub card_radius: String,
+    #[serde(default = "default_glow_enabled")]
+    pub glow_enabled: bool,
+    #[serde(default = "default_shortcut_open")]
+    pub shortcut_open: String,
+    #[serde(default = "default_shortcut_left")]
+    pub shortcut_left: String,
+    #[serde(default = "default_shortcut_right")]
+    pub shortcut_right: String,
+    #[serde(default = "default_shortcut_desktop")]
+    pub shortcut_desktop: String,
+    #[serde(default = "default_shortcut_up")]
+    pub shortcut_up: String,
+    #[serde(default = "default_shortcut_down")]
+    pub shortcut_down: String,
+    /// Сколько пробных добавлений использовано в текущем окне 30 дней
+    #[serde(default = "default_trial_used")]
+    pub trial_used_this_month: u32,
+    /// Unix-timestamp конца текущего 30-дневного окна (0 = ещё не начато)
+    #[serde(default = "default_trial_reset_at")]
+    pub trial_reset_at: u64,
+    #[serde(default = "default_icon_underlays")]
+    pub icon_underlays_enabled: bool,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        AppSettings {
+            wall_background:       default_wall_bg(),
+            card_frame:            default_card_frame(),
+            card_radius:           default_card_radius(),
+            glow_enabled:          default_glow_enabled(),
+            shortcut_open:         default_shortcut_open(),
+            shortcut_left:         default_shortcut_left(),
+            shortcut_right:        default_shortcut_right(),
+            shortcut_desktop:      default_shortcut_desktop(),
+            shortcut_up:           default_shortcut_up(),
+            shortcut_down:         default_shortcut_down(),
+            trial_used_this_month: default_trial_used(),
+            trial_reset_at:        default_trial_reset_at(),
+            icon_underlays_enabled: default_icon_underlays(),
+        }
+    }
+}
+
+// ─── Парсинг строки шорткута ──────────────────────────────────────────────────
+fn parse_shortcut_str(s: &str) -> Option<Shortcut> {
+    let mut mods = Modifiers::empty();
+    let mut key  = String::new();
+    for part in s.split('+') {
+        match part.trim().to_lowercase().as_str() {
+            "ctrl" | "control" => mods |= Modifiers::CONTROL,
+            "alt"              => mods |= Modifiers::ALT,
+            "shift"            => mods |= Modifiers::SHIFT,
+            k                  => { key = k.to_string(); }
+        }
+    }
+    let code = match key.as_str() {
+        "a" => Code::KeyA,  "b" => Code::KeyB,  "c" => Code::KeyC,
+        "d" => Code::KeyD,  "e" => Code::KeyE,  "f" => Code::KeyF,
+        "g" => Code::KeyG,  "h" => Code::KeyH,  "i" => Code::KeyI,
+        "j" => Code::KeyJ,  "k" => Code::KeyK,  "l" => Code::KeyL,
+        "m" => Code::KeyM,  "n" => Code::KeyN,  "o" => Code::KeyO,
+        "p" => Code::KeyP,  "q" => Code::KeyQ,  "r" => Code::KeyR,
+        "s" => Code::KeyS,  "t" => Code::KeyT,  "u" => Code::KeyU,
+        "v" => Code::KeyV,  "w" => Code::KeyW,  "x" => Code::KeyX,
+        "y" => Code::KeyY,  "z" => Code::KeyZ,
+        "arrowleft"  | "left"  => Code::ArrowLeft,
+        "arrowright" | "right" => Code::ArrowRight,
+        "arrowup"    | "up"    => Code::ArrowUp,
+        "arrowdown"  | "down"  => Code::ArrowDown,
+        _ => return None,
+    };
+    Some(Shortcut::new(if mods.is_empty() { None } else { Some(mods) }, code))
+}
+
+// ─── Вспомогательные функции настроек ─────────────────────────────────────────
+fn settings_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_data_dir().ok().map(|d| d.join("settings.json"))
+}
+
+fn read_settings(app: &tauri::AppHandle) -> AppSettings {
+    let Some(path) = settings_path(app) else { return AppSettings::default() };
+    if !path.exists() { return AppSettings::default(); }
+    let data = fs::read_to_string(&path).unwrap_or_default();
+    serde_json::from_str(&data).unwrap_or_default()
+}
+
+// ─── Tauri команды: настройки ─────────────────────────────────────────────────
+#[tauri::command]
+fn load_settings(app: tauri::AppHandle) -> AppSettings {
+    read_settings(&app)
+}
+
+#[tauri::command]
+fn save_settings(app: tauri::AppHandle, settings: AppSettings) -> Result<(), String> {
+    let path = settings_path(&app).ok_or("cannot get app data dir")?;
+    let json = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+    fs::create_dir_all(path.parent().unwrap()).ok();
+    fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_shortcuts(app: tauri::AppHandle, settings: AppSettings) -> Result<(), String> {
+    let state = app.state::<HotkeyState>();
+
+    // Снимаем регистрацию старых шорткутов
+    {
+        let olds = [
+            state.open.lock().unwrap().clone(),
+            state.left.lock().unwrap().clone(),
+            state.right.lock().unwrap().clone(),
+            state.desktop.lock().unwrap().clone(),
+            state.up.lock().unwrap().clone(),
+            state.down.lock().unwrap().clone(),
+        ];
+        for s in &olds {
+            if let Some(sc) = parse_shortcut_str(s) {
+                let _ = app.global_shortcut().unregister(sc);
+            }
+        }
+    }
+
+    // Регистрируем новые
+    let news = [
+        settings.shortcut_open.as_str(),
+        settings.shortcut_left.as_str(),
+        settings.shortcut_right.as_str(),
+        settings.shortcut_desktop.as_str(),
+        settings.shortcut_up.as_str(),
+        settings.shortcut_down.as_str(),
+    ];
+    for s in &news {
+        if let Some(sc) = parse_shortcut_str(s) {
+            app.global_shortcut().register(sc).map_err(|e| e.to_string())?;
+        }
+    }
+
+    // Обновляем состояние
+    *state.open.lock().unwrap()    = settings.shortcut_open;
+    *state.left.lock().unwrap()    = settings.shortcut_left;
+    *state.right.lock().unwrap()   = settings.shortcut_right;
+    *state.desktop.lock().unwrap() = settings.shortcut_desktop;
+    *state.up.lock().unwrap()      = settings.shortcut_up;
+    *state.down.lock().unwrap()    = settings.shortcut_down;
+
+    Ok(())
+}
+
+// ─── Скрыть / показать ярлыки рабочего стола ─────────────────────────────────
+#[cfg(target_os = "windows")]
+unsafe fn do_toggle_desktop_icons() {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::UI::WindowsAndMessaging::*;
+
+    fn wstr(s: &str) -> Vec<u16> {
+        OsStr::new(s).encode_wide().chain(Some(0)).collect()
+    }
+
+    let progman = FindWindowW(wstr("Progman").as_ptr(), std::ptr::null());
+    let mut shell_view = if progman != 0 {
+        FindWindowExW(progman, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null())
+    } else {
+        0
+    };
+
+    if shell_view == 0 {
+        let mut worker = FindWindowExW(0, 0, wstr("WorkerW").as_ptr(), std::ptr::null());
+        while worker != 0 && shell_view == 0 {
+            shell_view = FindWindowExW(worker, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null());
+            worker = FindWindowExW(0, worker, wstr("WorkerW").as_ptr(), std::ptr::null());
+        }
+    }
+
+    if shell_view == 0 { return; }
+
+    let list_view = FindWindowExW(shell_view, 0, wstr("SysListView32").as_ptr(), std::ptr::null());
+    if list_view == 0 { return; }
+
+    let visible = IsWindowVisible(list_view) != 0;
+    ShowWindow(list_view, if visible { SW_HIDE } else { SW_SHOW });
+    println!("[desktop] Ярлыки: {}", if visible { "скрыты" } else { "показаны" });
+}
+
+#[tauri::command]
+fn toggle_desktop_icons() {
+    #[cfg(target_os = "windows")]
+    unsafe { do_toggle_desktop_icons(); }
+}
+
+// ─── Tauri команды: автозапуск ────────────────────────────────────────────────
+#[tauri::command]
+fn get_autostart_enabled(app: tauri::AppHandle) -> bool {
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+fn set_autostart_enabled(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    let autolaunch = app.autolaunch();
+    if enabled {
+        autolaunch.enable().map_err(|e| e.to_string())?;
+    } else {
+        autolaunch.disable().map_err(|e| e.to_string())?;
+    }
+    if let Some(state) = app.try_state::<TrayState>() {
+        if let Ok(item) = state.autostart_item.lock() {
+            let _ = item.set_checked(enabled);
+        }
+    }
+    Ok(())
+}
+
+// ─── IPFS → HTTP gateway ──────────────────────────────────────────────────────
+fn resolve_uri(uri: &str) -> String {
+    if uri.starts_with("ipfs://") {
+        let hash = uri.trim_start_matches("ipfs://");
+        format!("https://ipfs.io/ipfs/{}", hash)
+    } else {
+        uri.to_string()
+    }
+}
+
+// ─── Парсинг ссылки objkt ─────────────────────────────────────────────────────
+fn parse_objkt_url(url: &str) -> Option<(String, String)> {
+    let url = url.trim();
+    let parsed = reqwest::Url::parse(url).ok()?;
+    if !parsed.host_str().unwrap_or("").contains("objkt.com") {
+        return None;
+    }
+    let parts: Vec<&str> = parsed.path().split('/').filter(|s| !s.is_empty()).collect();
+    let prefix_idx = parts.iter().position(|&p| {
+        p == "tokens" || p == "o" || p == "asset" || p == "t"
+    })?;
+    if parts.len() < prefix_idx + 3 {
+        return None;
+    }
+    let contract = parts[prefix_idx + 1].to_string();
+    let token_id = parts[prefix_idx + 2].to_string();
+    if token_id.parse::<u64>().is_err() {
+        return None;
+    }
+    Some((contract, token_id))
+}
+
+// ─── Извлечь OG-тег из HTML ──────────────────────────────────────────────────
+fn extract_meta_content(html: &str, property: &str) -> Option<String> {
+    let lower = html.to_lowercase();
+    let prop_pattern = format!("\"{}\"", property.to_lowercase());
+
+    let mut search_from = 0;
+    while search_from < lower.len() {
+        let rel = lower[search_from..].find(&prop_pattern)?;
+        let abs_pos = search_from + rel;
+
+        // Откатываемся до открывающего <meta
+        let tag_start = lower[..abs_pos].rfind("<meta")?;
+        let tag_end   = lower[tag_start..].find('>')
+            .map(|i| i + tag_start)
+            .unwrap_or(lower.len().saturating_sub(1));
+        let tag       = &html[tag_start..=tag_end.min(html.len() - 1)];
+        let tag_lower = tag.to_lowercase();
+
+        if let Some(c_pos) = tag_lower.find("content=\"") {
+            let start = c_pos + 9;
+            if start < tag.len() {
+                if let Some(end) = tag[start..].find('"') {
+                    let content = &tag[start..start + end];
+                    if !content.is_empty() {
+                        return Some(content
+                            .replace("&amp;", "&")
+                            .replace("&quot;", "\"")
+                            .replace("&#39;", "'"));
+                    }
+                }
+            }
+        }
+
+        search_from = abs_pos + prop_pattern.len();
+    }
+    None
+}
+
+// ─── Универсальный скрейпинг OG-тегов ────────────────────────────────────────
+async fn fetch_og_token_inner(url: &str, source: &str) -> Result<ArtworkToken, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client.get(url).send().await
+        .map_err(|e| format!("Ошибка сети: {}", e))?;
+    let html = resp.text().await
+        .map_err(|e| format!("Ошибка чтения страницы: {}", e))?;
+
+    let image_url = extract_meta_content(&html, "og:image")
+        .ok_or_else(|| "Не удалось найти изображение на странице".to_string())?;
+
+    let title = extract_meta_content(&html, "og:title")
+        .unwrap_or_else(|| "Без названия".to_string());
+
+    let creator = extract_meta_content(&html, "og:site_name")
+        .unwrap_or_default();
+
+    // Генерируем уникальный id из URL
+    let url_tail = if url.len() > 40 { &url[url.len() - 40..] } else { url };
+    let id = format!("{}_{}", source, url_tail.replace(['/', ':', '?', '&', '='], "_"));
+
+    Ok(ArtworkToken {
+        id,
+        name:             title,
+        contract:         String::new(),
+        token_id:         String::new(),
+        display_uri:      image_url,
+        creators:         if creator.is_empty() { vec![] } else { vec![creator] },
+        wall_scale:       1.0,
+        dash_x:           None,
+        dash_y:           None,
+        verified:         true, // веб-изображения не нуждаются в блокчейн-верификации
+        verified_address: None,
+        trial_expires_at: None,
+        source:           Some(source.to_string()),
+    })
+}
+
+// ─── Tauri команда: запросить токен с objkt ───────────────────────────────────
+async fn fetch_objkt_token_inner(url: &str) -> Result<ArtworkToken, String> {
+    let (contract_or_slug, token_id) = parse_objkt_url(url)
+        .ok_or_else(|| "Неверная ссылка — вставьте адрес объекта с objkt.com".to_string())?;
+
+    let where_clause = if contract_or_slug.starts_with("KT1") {
+        format!(r#"fa_contract: {{ _eq: \"{}\" }}, token_id: {{ _eq: \"{}\" }}"#,
+            contract_or_slug, token_id)
+    } else {
+        format!(r#"fa: {{ path: {{ _eq: \"{}\" }} }}, token_id: {{ _eq: \"{}\" }}"#,
+            contract_or_slug, token_id)
+    };
+
+    let query = format!(
+        r#"{{ "query": "{{ token(where: {{ {} }}) {{ name display_uri artifact_uri fa_contract token_id creators {{ holder {{ alias address }} }} }} }}" }}"#,
+        where_clause
+    );
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post("https://data.objkt.com/v3/graphql")
+        .header("Content-Type", "application/json")
+        .body(query)
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка сети: {}", e))?;
+
+    let json: serde_json::Value = resp.json().await
+        .map_err(|e| format!("Ошибка ответа: {}", e))?;
+
+    let token = json["data"]["token"].as_array()
+        .and_then(|arr| arr.first())
+        .ok_or_else(|| "Объект не найден на objkt.com".to_string())?;
+
+    let name = token["name"].as_str().unwrap_or("Без названия").to_string();
+
+    let raw_uri = token["display_uri"].as_str()
+        .or_else(|| token["artifact_uri"].as_str())
+        .unwrap_or("")
+        .to_string();
+    let display_uri = resolve_uri(&raw_uri);
+
+    if display_uri.is_empty() {
+        return Err("У объекта нет изображения".to_string());
+    }
+
+    let creators: Vec<String> = token["creators"].as_array()
+        .map(|arr| arr.iter().filter_map(|c| {
+            c["holder"]["alias"].as_str()
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .or_else(|| c["holder"]["address"].as_str().map(|a| {
+                    format!("{}…{}", &a[..4], &a[a.len()-4..])
+                }))
+        }).collect())
+        .unwrap_or_default();
+
+    let contract = token["fa_contract"].as_str()
+        .unwrap_or(&contract_or_slug)
+        .to_string();
+    let token_id_final = token["token_id"].as_str()
+        .unwrap_or(&token_id)
+        .to_string();
+
+    Ok(ArtworkToken {
+        id:               format!("{}_{}", contract, token_id_final),
+        name,
+        contract,
+        token_id:         token_id_final,
+        display_uri,
+        creators,
+        wall_scale:       1.0,
+        dash_x:           None,
+        dash_y:           None,
+        verified:         false,
+        verified_address: None,
+        trial_expires_at: None,
+        source:           Some("objkt".to_string()),
+    })
+}
+
+// ─── Tauri команда: универсальный импорт по URL ───────────────────────────────
+#[tauri::command]
+async fn fetch_token(url: String) -> Result<ArtworkToken, String> {
+    let u = url.trim().to_lowercase();
+    if u.contains("objkt.com") {
+        fetch_objkt_token_inner(&url).await
+    } else if u.contains("pinterest.") || u.contains("pin.it") {
+        fetch_og_token_inner(&url, "pinterest").await
+    } else {
+        Err("Поддерживаемые платформы: objkt.com и Pinterest".to_string())
+    }
+}
+
+// ─── (оставлен для обратной совместимости) ────────────────────────────────────
+#[tauri::command]
+async fn fetch_objkt_token(url: String) -> Result<ArtworkToken, String> {
+    fetch_objkt_token_inner(&url).await
+}
+
+// ─── Tauri команда: сохранить токен ──────────────────────────────────────────
+#[tauri::command]
+fn save_token(app: tauri::AppHandle, token: ArtworkToken) -> Result<(), String> {
+    let path = app.path().app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("tokens.json");
+
+    let mut tokens: Vec<ArtworkToken> = if path.exists() {
+        let data = fs::read_to_string(&path).unwrap_or_else(|_| "[]".to_string());
+        serde_json::from_str(&data).unwrap_or_default()
+    } else {
+        vec![]
+    };
+
+    if !tokens.iter().any(|t| t.id == token.id) {
+        tokens.push(token);
+        let json = serde_json::to_string_pretty(&tokens)
+            .map_err(|e| e.to_string())?;
+        fs::create_dir_all(path.parent().unwrap()).ok();
+        fs::write(&path, json).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+// ─── Tauri команда: загрузить все токены ─────────────────────────────────────
+#[tauri::command]
+fn load_tokens(app: tauri::AppHandle) -> Result<Vec<ArtworkToken>, String> {
+    let path = app.path().app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("tokens.json");
+
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+
+    let data = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let tokens: Vec<ArtworkToken> = serde_json::from_str(&data).unwrap_or_default();
+    Ok(tokens)
+}
+
+// ─── Tauri команда: обновить список токенов ───────────────────────────────────
+#[tauri::command]
+fn update_tokens(app: tauri::AppHandle, tokens: Vec<ArtworkToken>) -> Result<(), String> {
+    let path = app.path().app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("tokens.json");
+    let json = serde_json::to_string_pretty(&tokens)
+        .map_err(|e| e.to_string())?;
+    fs::create_dir_all(path.parent().unwrap()).ok();
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ─── Квота пробных добавлений ─────────────────────────────────────────────────
+const TRIAL_LIMIT:    u32 = 5;
+const TRIAL_DURATION: u64 = 3 * 24 * 60 * 60;
+const QUOTA_WINDOW:   u64 = 30 * 24 * 60 * 60;
+
+#[tauri::command]
+fn get_trial_quota(app: tauri::AppHandle) -> u32 {
+    let settings = read_settings(&app);
+    let now = unix_now();
+    if now >= settings.trial_reset_at {
+        TRIAL_LIMIT
+    } else {
+        TRIAL_LIMIT.saturating_sub(settings.trial_used_this_month)
+    }
+}
+
+#[tauri::command]
+fn add_trial_token(app: tauri::AppHandle, mut token: ArtworkToken) -> Result<(), String> {
+    let mut settings = read_settings(&app);
+    let now = unix_now();
+
+    if now >= settings.trial_reset_at {
+        settings.trial_used_this_month = 0;
+        settings.trial_reset_at = now + QUOTA_WINDOW;
+    }
+
+    if settings.trial_used_this_month >= TRIAL_LIMIT {
+        return Err(format!(
+            "Достигнут лимит {} работ без подтверждения в месяц. Следующий сброс через {} ч.",
+            TRIAL_LIMIT,
+            (settings.trial_reset_at.saturating_sub(now)) / 3600
+        ));
+    }
+
+    token.trial_expires_at = Some(now + TRIAL_DURATION);
+    token.verified         = false;
+
+    let path = app.path().app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("tokens.json");
+
+    let mut tokens: Vec<ArtworkToken> = if path.exists() {
+        let data = fs::read_to_string(&path).unwrap_or_else(|_| "[]".to_string());
+        serde_json::from_str(&data).unwrap_or_default()
+    } else {
+        vec![]
+    };
+
+    if !tokens.iter().any(|t| t.id == token.id) {
+        tokens.push(token);
+        let json = serde_json::to_string_pretty(&tokens).map_err(|e| e.to_string())?;
+        fs::create_dir_all(path.parent().unwrap()).ok();
+        fs::write(&path, json).map_err(|e| e.to_string())?;
+    }
+
+    settings.trial_used_this_month += 1;
+    save_settings(app, settings)?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn cleanup_expired_tokens(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let path = app.path().app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("tokens.json");
+
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+
+    let data = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let tokens: Vec<ArtworkToken> = serde_json::from_str(&data).unwrap_or_default();
+
+    let now = unix_now();
+    let mut expired_ids = vec![];
+    let valid: Vec<ArtworkToken> = tokens.into_iter().filter(|t| {
+        if let Some(exp) = t.trial_expires_at {
+            if now >= exp {
+                expired_ids.push(t.id.clone());
+                return false;
+            }
+        }
+        true
+    }).collect();
+
+    if !expired_ids.is_empty() {
+        let json = serde_json::to_string_pretty(&valid).map_err(|e| e.to_string())?;
+        fs::write(&path, json).map_err(|e| e.to_string())?;
+        println!("[trial] Удалено {} истёкших токенов: {:?}", expired_ids.len(), expired_ids);
+    }
+
+    Ok(expired_ids)
+}
+
+// ─── Позиции ярлыков рабочего стола ──────────────────────────────────────────
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DesktopIcon {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+#[tauri::command]
+fn get_desktop_icons() -> Vec<DesktopIcon> {
+    #[cfg(target_os = "windows")]
+    unsafe { get_desktop_icons_win() }
+    #[cfg(not(target_os = "windows"))]
+    vec![]
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn get_desktop_icons_win() -> Vec<DesktopIcon> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::{CloseHandle, FALSE, RECT};
+    use windows_sys::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
+    use windows_sys::Win32::System::Memory::{
+        VirtualAllocEx, VirtualFreeEx, MEM_COMMIT, MEM_RELEASE, PAGE_READWRITE,
+    };
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_VM_OPERATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::*;
+
+    fn wstr(s: &str) -> Vec<u16> {
+        OsStr::new(s).encode_wide().chain(Some(0)).collect()
+    }
+
+    const LVM_GETITEMCOUNT: u32 = 0x1000 + 4;
+    const LVM_GETITEMRECT:  u32 = 0x1000 + 14;
+    const LVIR_SELECTBOUNDS: i32 = 3;
+
+    // Находим SysListView32 (тот же путь, что и в toggle_desktop_icons)
+    let progman = FindWindowW(wstr("Progman").as_ptr(), std::ptr::null());
+    let mut shell_view = if progman != 0 {
+        FindWindowExW(progman, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null())
+    } else {
+        0
+    };
+    if shell_view == 0 {
+        let mut worker = FindWindowExW(0, 0, wstr("WorkerW").as_ptr(), std::ptr::null());
+        while worker != 0 && shell_view == 0 {
+            shell_view = FindWindowExW(worker, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null());
+            worker = FindWindowExW(0, worker, wstr("WorkerW").as_ptr(), std::ptr::null());
+        }
+    }
+    if shell_view == 0 { return vec![]; }
+
+    let list_view = FindWindowExW(shell_view, 0, wstr("SysListView32").as_ptr(), std::ptr::null());
+    if list_view == 0 { return vec![]; }
+
+    let count = SendMessageW(list_view, LVM_GETITEMCOUNT, 0, 0);
+    if count <= 0 { return vec![]; }
+
+    // Открываем процесс Explorer для кросс-процессного чтения памяти
+    let mut pid: u32 = 0;
+    GetWindowThreadProcessId(list_view, &mut pid);
+    let proc = OpenProcess(
+        PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION,
+        FALSE,
+        pid,
+    );
+    if proc == 0 { return vec![]; }
+
+    // Выделяем один RECT в памяти Explorer — переиспользуем для всех иконок
+    let remote_rect = VirtualAllocEx(
+        proc,
+        std::ptr::null(),
+        std::mem::size_of::<RECT>(),
+        MEM_COMMIT,
+        PAGE_READWRITE,
+    );
+    if remote_rect.is_null() {
+        CloseHandle(proc);
+        return vec![];
+    }
+
+    let mut icons = Vec::with_capacity(count as usize);
+    for i in 0..count {
+        // Записываем код LVIR в поле left перед отправкой сообщения
+        let code_bytes = LVIR_SELECTBOUNDS.to_ne_bytes();
+        WriteProcessMemory(
+            proc, remote_rect,
+            code_bytes.as_ptr() as _,
+            4,
+            std::ptr::null_mut(),
+        );
+
+        let ok = SendMessageW(list_view, LVM_GETITEMRECT, i as usize, remote_rect as isize);
+        if ok != 0 {
+            let mut rc = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            ReadProcessMemory(
+                proc, remote_rect,
+                &mut rc as *mut RECT as _,
+                std::mem::size_of::<RECT>(),
+                std::ptr::null_mut(),
+            );
+            if rc.right > rc.left && rc.bottom > rc.top {
+                icons.push(DesktopIcon {
+                    x: rc.left,
+                    y: rc.top,
+                    w: rc.right  - rc.left,
+                    h: rc.bottom - rc.top,
+                });
+            }
+        }
+    }
+
+    VirtualFreeEx(proc, remote_rect, 0, MEM_RELEASE);
+    CloseHandle(proc);
+    icons
+}
+
+// ─── Снять выделение / фокус с ярлыков рабочего стола ────────────────────────
+#[tauri::command]
+fn clear_icon_selection() {
+    #[cfg(target_os = "windows")]
+    unsafe { clear_icon_selection_win(); }
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn clear_icon_selection_win() {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::{CloseHandle, FALSE};
+    use windows_sys::Win32::System::Diagnostics::Debug::WriteProcessMemory;
+    use windows_sys::Win32::System::Memory::{
+        VirtualAllocEx, VirtualFreeEx, MEM_COMMIT, MEM_RELEASE, PAGE_READWRITE,
+    };
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_VM_OPERATION, PROCESS_VM_WRITE,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::*;
+
+    fn wstr(s: &str) -> Vec<u16> {
+        OsStr::new(s).encode_wide().chain(Some(0)).collect()
+    }
+
+    const LVM_SETITEMSTATE: u32 = 0x1000 + 43;
+    const LVIF_STATE:        u32 = 0x0008;
+    const LVIS_FOCUSED:      u32 = 0x0001;
+    const LVIS_SELECTED:     u32 = 0x0002;
+
+    let progman = FindWindowW(wstr("Progman").as_ptr(), std::ptr::null());
+    let mut shell_view = if progman != 0 {
+        FindWindowExW(progman, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null())
+    } else { 0 };
+    if shell_view == 0 {
+        let mut worker = FindWindowExW(0, 0, wstr("WorkerW").as_ptr(), std::ptr::null());
+        while worker != 0 && shell_view == 0 {
+            shell_view = FindWindowExW(worker, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null());
+            worker = FindWindowExW(0, worker, wstr("WorkerW").as_ptr(), std::ptr::null());
+        }
+    }
+    if shell_view == 0 { return; }
+
+    let list_view = FindWindowExW(shell_view, 0, wstr("SysListView32").as_ptr(), std::ptr::null());
+    if list_view == 0 { return; }
+
+    let mut pid: u32 = 0;
+    GetWindowThreadProcessId(list_view, &mut pid);
+    let proc = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_WRITE, FALSE, pid);
+    if proc == 0 { return; }
+
+    // LVITEM: только первые 5 полей нужны для смены состояния
+    #[repr(C)]
+    struct LvItem { mask: u32, i_item: i32, i_sub_item: i32, state: u32, state_mask: u32 }
+    let item = LvItem {
+        mask:       LVIF_STATE,
+        i_item:     0,
+        i_sub_item: 0,
+        state:      0,  // сбросить
+        state_mask: LVIS_FOCUSED | LVIS_SELECTED,
+    };
+
+    let remote = VirtualAllocEx(
+        proc, std::ptr::null(),
+        std::mem::size_of::<LvItem>(),
+        MEM_COMMIT, PAGE_READWRITE,
+    );
+    if remote.is_null() { CloseHandle(proc); return; }
+
+    WriteProcessMemory(
+        proc, remote,
+        &item as *const LvItem as _,
+        std::mem::size_of::<LvItem>(),
+        std::ptr::null_mut(),
+    );
+
+    // wParam = usize::MAX (то есть -1) означает «применить ко всем элементам»
+    SendMessageW(list_view, LVM_SETITEMSTATE, usize::MAX, remote as isize);
+
+    VirtualFreeEx(proc, remote, 0, MEM_RELEASE);
+    CloseHandle(proc);
+}
+
+// ─── Tauri команда: проверить владение токеном через TzKT ────────────────────
+#[tauri::command]
+async fn verify_ownership(contract: String, token_id: String, wallet: String) -> Result<bool, String> {
+    if !wallet.starts_with("tz1") && !wallet.starts_with("tz2") && !wallet.starts_with("tz3") && !wallet.starts_with("KT1") {
+        return Err("Неверный формат адреса. Адрес должен начинаться с tz1, tz2 или tz3.".to_string());
+    }
+    if wallet.len() < 36 {
+        return Err("Адрес кошелька слишком короткий.".to_string());
+    }
+
+    let url = format!(
+        "https://api.tzkt.io/v1/tokens/balances?token.contract={}&token.tokenId={}&account={}&balance.gt=0&limit=1",
+        contract, token_id, wallet
+    );
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(&url)
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка сети: {}", e))?;
+
+    let json: serde_json::Value = resp.json().await
+        .map_err(|e| format!("Ошибка ответа: {}", e))?;
+
+    Ok(json.as_array().map_or(false, |arr| !arr.is_empty()))
+}
+
+// ─── Точка входа ─────────────────────────────────────────────────────────────
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![]),
+        ))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    let Some(state) = app.try_state::<HotkeyState>() else { return };
+
+                    let sc_open    = state.open.lock().unwrap().clone();
+                    let sc_left    = state.left.lock().unwrap().clone();
+                    let sc_right   = state.right.lock().unwrap().clone();
+                    let sc_desktop = state.desktop.lock().unwrap().clone();
+                    let sc_up      = state.up.lock().unwrap().clone();
+                    let sc_down    = state.down.lock().unwrap().clone();
+
+                    let is_left    = parse_shortcut_str(&sc_left)   .map_or(false, |s| s == *shortcut);
+                    let is_right   = parse_shortcut_str(&sc_right)  .map_or(false, |s| s == *shortcut);
+                    let is_open    = parse_shortcut_str(&sc_open)   .map_or(false, |s| s == *shortcut);
+                    let is_desktop = parse_shortcut_str(&sc_desktop).map_or(false, |s| s == *shortcut);
+                    let is_up      = parse_shortcut_str(&sc_up)     .map_or(false, |s| s == *shortcut);
+                    let is_down    = parse_shortcut_str(&sc_down)   .map_or(false, |s| s == *shortcut);
+
+                    if is_left {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.eval("window.scrollWall('left')");
+                        }
+                    } else if is_right {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.eval("window.scrollWall('right')");
+                        }
+                    } else if is_up {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.eval("window.scrollWallV('up')");
+                        }
+                    } else if is_down {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.eval("window.scrollWallV('down')");
+                        }
+                    } else if is_open {
+                        if let Some(w) = app.get_webview_window("welcome") {
+                            let visible = w.is_visible().unwrap_or(false);
+                            if visible { let _ = w.hide(); }
+                            else { let _ = w.show(); let _ = w.set_focus(); }
+                        }
+                    } else if is_desktop {
+                        #[cfg(target_os = "windows")]
+                        unsafe { do_toggle_desktop_icons(); }
+                    }
+                })
+                .build(),
+        )
+        .invoke_handler(tauri::generate_handler![
+            fetch_token,
+            fetch_objkt_token,
+            save_token,
+            load_tokens,
+            update_tokens,
+            load_settings,
+            save_settings,
+            update_shortcuts,
+            toggle_desktop_icons,
+            get_autostart_enabled,
+            set_autostart_enabled,
+            verify_ownership,
+            get_trial_quota,
+            add_trial_token,
+            cleanup_expired_tokens,
+            get_desktop_icons,
+            clear_icon_selection,
+        ])
+        .setup(|app| {
+            // ── Встраиваем главное окно в рабочий стол ───────────────────────
+            let window = app.get_webview_window("main").unwrap();
+            #[cfg(target_os = "windows")]
+            {
+                let hwnd_tauri = window.hwnd().unwrap();
+                unsafe { wallpaper::embed_in_desktop(hwnd_tauri.0 as isize); }
+            }
+
+            // ── Загружаем настройки и регистрируем горячие клавиши ────────────
+            let settings = read_settings(&app.handle());
+
+            let all_shortcuts = [
+                &settings.shortcut_open,
+                &settings.shortcut_left,
+                &settings.shortcut_right,
+                &settings.shortcut_desktop,
+                &settings.shortcut_up,
+                &settings.shortcut_down,
+            ];
+            for s in &all_shortcuts {
+                if let Some(sc) = parse_shortcut_str(s) {
+                    if let Err(e) = app.global_shortcut().register(sc) {
+                        eprintln!("[shortcuts] Не удалось зарегистрировать {}: {}", s, e);
+                    }
+                }
+            }
+            println!("[shortcuts] Зарегистрировано {} шорткутов", all_shortcuts.len());
+
+            app.manage(HotkeyState {
+                open:    Mutex::new(settings.shortcut_open.clone()),
+                left:    Mutex::new(settings.shortcut_left.clone()),
+                right:   Mutex::new(settings.shortcut_right.clone()),
+                desktop: Mutex::new(settings.shortcut_desktop.clone()),
+                up:      Mutex::new(settings.shortcut_up.clone()),
+                down:    Mutex::new(settings.shortcut_down.clone()),
+            });
+
+            // ── Системный трей ────────────────────────────────────────────────
+            let is_autostart = app.autolaunch().is_enabled().unwrap_or(false);
+
+            let open_item      = MenuItem::with_id(app, "open",      "Открыть управление", true, None::<&str>)?;
+            let autostart_item = CheckMenuItem::with_id(app, "autostart", "Автозапуск", true, is_autostart, None::<&str>)?;
+            let quit_item      = MenuItem::with_id(app, "quit",      "Выход",              true, None::<&str>)?;
+
+            let menu = Menu::with_items(app, &[&open_item, &autostart_item, &quit_item])?;
+
+            TrayIconBuilder::with_id("main-tray")
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .show_menu_on_left_click(true)
+                .tooltip("ХОЛСТ")
+                .on_menu_event(|app, event| {
+                    match event.id.as_ref() {
+                        "open" => {
+                            if let Some(w) = app.get_webview_window("welcome") {
+                                if w.is_visible().unwrap_or(false) {
+                                    let _ = w.set_focus();
+                                } else {
+                                    let _ = w.show();
+                                    let _ = w.set_focus();
+                                }
+                            }
+                        }
+                        "autostart" => {
+                            let autolaunch = app.autolaunch();
+                            let was_enabled = autolaunch.is_enabled().unwrap_or(false);
+                            if was_enabled {
+                                let _ = autolaunch.disable();
+                            } else {
+                                let _ = autolaunch.enable();
+                            }
+                            if let Some(state) = app.try_state::<TrayState>() {
+                                if let Ok(item) = state.autostart_item.lock() {
+                                    let _ = item.set_checked(!was_enabled);
+                                }
+                            }
+                            println!("[tray] Автозапуск: {}", if was_enabled { "выкл" } else { "вкл" });
+                        }
+                        "quit" => {
+                            println!("[tray] Выход");
+                            #[cfg(target_os = "windows")]
+                            if let Some(w) = app.get_webview_window("main") {
+                                if let Ok(hwnd_tauri) = w.hwnd() {
+                                    use windows_sys::Win32::UI::WindowsAndMessaging::*;
+                                    unsafe {
+                                        let hwnd = hwnd_tauri.0 as isize;
+                                        ShowWindow(hwnd, SW_HIDE);
+                                        SetParent(hwnd, 0);
+                                    }
+                                }
+                            }
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .build(app)?;
+
+            app.manage(TrayState {
+                autostart_item: Mutex::new(autostart_item),
+            });
+
+            println!("[tray] Системный трей создан");
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
