@@ -44,10 +44,20 @@ mod wallpaper {
         }
 
         let mut result: usize = 0;
+        // Первый вызов — стандартный (Windows 10)
         SendMessageTimeoutW(progman, 0x052C, 0, 0, SMTO_NORMAL, 1000, &mut result as *mut usize as *mut _);
+        // Второй вызов с (0xD, 1) — создаёт WorkerW на Windows 11
+        SendMessageTimeoutW(progman, 0x052C, 0xD, 1, SMTO_NORMAL, 1000, &mut result as *mut usize as *mut _);
 
         WORKER_W = 0;
         EnumWindows(Some(find_worker_w), 0);
+
+        // Windows 11 может создавать WorkerW с задержкой — повторная попытка
+        if WORKER_W == 0 {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            EnumWindows(Some(find_worker_w), 0);
+        }
+
         let parent = if WORKER_W != 0 { WORKER_W } else { progman };
 
         let screen_w = GetSystemMetrics(SM_CXSCREEN);
@@ -57,7 +67,7 @@ mod wallpaper {
         SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, screen_w, screen_h, SWP_NOACTIVATE);
         ShowWindow(hwnd, SW_SHOWNOACTIVATE);
 
-        println!("[wallpaper] Окно встроено в рабочий стол ({}x{})", screen_w, screen_h);
+        println!("[wallpaper] Окно встроено в рабочий стол ({}x{}), WorkerW={}", screen_w, screen_h, WORKER_W);
     }
 }
 
