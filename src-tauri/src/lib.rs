@@ -52,9 +52,13 @@ mod wallpaper {
         WORKER_W = 0;
         EnumWindows(Some(find_worker_w), 0);
 
-        // Windows 11 может создавать WorkerW с задержкой — повторная попытка
+        // Если WorkerW не нашёлся — ждём и пробуем ещё раз (Windows 11 создаёт его с задержкой)
         if WORKER_W == 0 {
-            std::thread::sleep(std::time::Duration::from_millis(500));
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            EnumWindows(Some(find_worker_w), 0);
+        }
+        if WORKER_W == 0 {
+            std::thread::sleep(std::time::Duration::from_millis(700));
             EnumWindows(Some(find_worker_w), 0);
         }
 
@@ -1032,11 +1036,32 @@ pub fn run() {
         ])
         .setup(|app| {
             // ── Встраиваем главное окно в рабочий стол ───────────────────────
-            let window = app.get_webview_window("main").unwrap();
+            // Запускаем в фоновом потоке: WebView2 на Windows 11 инициализирует
+            // compositor асинхронно, вызов из setup() слишком ранний.
             #[cfg(target_os = "windows")]
             {
-                let hwnd_tauri = window.hwnd().unwrap();
-                unsafe { wallpaper::embed_in_desktop(hwnd_tauri.0 as isize); }
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    // Ждём инициализации WebView2 compositor (критично на Windows 11)
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    if let Some(w) = handle.get_webview_window("main") {
+                        if let Ok(hwnd_tauri) = w.hwnd() {
+                            let hwnd = hwnd_tauri.0 as isize;
+                            unsafe { wallpaper::embed_in_desktop(hwnd); }
+                            // Следим за тем, что окно не потеряло родителя
+                            // (Wallpaper Engine и подобные сбрасывают WorkerW при закрытии)
+                            loop {
+                                std::thread::sleep(std::time::Duration::from_secs(30));
+                                use windows_sys::Win32::UI::WindowsAndMessaging::GetParent;
+                                let parent = unsafe { GetParent(hwnd) };
+                                if parent == 0 {
+                                    println!("[wallpaper] Родитель потерян, повторное встраивание");
+                                    unsafe { wallpaper::embed_in_desktop(hwnd); }
+                                }
+                            }
+                        }
+                    }
+                });
             }
 
             // ── Загружаем настройки и регистрируем горячие клавиши ────────────

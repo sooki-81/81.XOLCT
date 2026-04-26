@@ -1,6 +1,6 @@
 [package]
 name = "xolct"
-version = "1.0.2"
+version = "1.0.3"
 description = "ХОЛСТ — персональная галерея цифрового искусства"
 authors = ["soominvision"]
 edition = "2021"
