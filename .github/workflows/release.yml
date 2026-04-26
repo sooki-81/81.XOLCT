@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -28,14 +31,26 @@ jobs:
       - name: Build Tauri app
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri -- build
+
+      - name: List bundle artifacts
+        shell: pwsh
+        run: |
+          Get-ChildItem "src-tauri/target/release/bundle/msi" | Select-Object Name, Length
 
       - name: Generate latest.json
         shell: pwsh
         run: |
           $msiDir = "src-tauri/target/release/bundle/msi"
-          $sigFile  = (Get-ChildItem "$msiDir" -Filter "*.msi.zip.sig")[0]
-          $zipFile  = (Get-ChildItem "$msiDir" -Filter "*.msi.zip")[0]
+          $sigFiles = Get-ChildItem "$msiDir" -Filter "*.msi.zip.sig" -ErrorAction SilentlyContinue
+          $zipFiles = Get-ChildItem "$msiDir" -Filter "*.msi.zip"    -ErrorAction SilentlyContinue
+          if (-not $sigFiles -or $sigFiles.Count -eq 0) {
+            Write-Warning "Файл .msi.zip.sig не найден — проверь секрет TAURI_SIGNING_PRIVATE_KEY в настройках репозитория. latest.json не будет создан."
+            exit 0
+          }
+          $sigFile = $sigFiles[0]
+          $zipFile = $zipFiles[0]
           $sig  = (Get-Content $sigFile.FullName -Raw).Trim()
           $tag  = "${{ github.ref_name }}"
           $ver  = $tag.TrimStart('v')
@@ -53,15 +68,22 @@ jobs:
             }
           }
           $obj | ConvertTo-Json -Depth 5 | Set-Content "latest.json" -Encoding utf8NoBOM
-          Write-Host "Generated latest.json for $ver -> $url"
+          Write-Host "latest.json создан для $ver -> $url"
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (MSI)
         uses: softprops/action-gh-release@v2
         with:
           files: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/msi/*.msi.zip
             src-tauri/target/release/bundle/msi/*.msi.zip.sig
-            latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload update manifest
+        if: hashFiles('latest.json') != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
