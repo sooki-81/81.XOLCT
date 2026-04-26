@@ -60,7 +60,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwMUY3MkMyQ0E0MzRFQkEKUldTNlRrUEt3bklmSUdERi9NYlZqcmhGKzY0L2RjRVdKMW95VnkySUFqSVZHR0ZmbHhoL1R0YlcK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU5QUFCOENGOUEyMUFFQzIKUldUQ3JpR2F6N2lxNmIzQWFFS0VITFhFRlVyZWNnelZXM2ZaSHdraks0bDJnVTFSMGxLNXVTNGMK",
       "endpoints": [
         "https://github.com/sooki-81/81.XOLCT/releases/latest/download/latest.json"
       ]
