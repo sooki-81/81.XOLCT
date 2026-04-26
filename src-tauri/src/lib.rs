@@ -1,6 +1,7 @@
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem},
     tray::TrayIconBuilder,
+    Emitter,
     Manager,
 };
 use tauri_plugin_autostart::ManagerExt;
