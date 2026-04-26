@@ -22,6 +22,7 @@ mod wallpaper {
     }
 
     static mut WORKER_W: HWND = 0;
+    static mut IS_FALLBACK: bool = false;
 
     unsafe extern "system" fn find_worker_w(hwnd: HWND, _param: LPARAM) -> BOOL {
         let shell_view = FindWindowExW(
@@ -36,7 +37,11 @@ mod wallpaper {
         TRUE
     }
 
+    pub fn is_fallback() -> bool { unsafe { IS_FALLBACK } }
+
     pub unsafe fn embed_in_desktop(hwnd: HWND) {
+        IS_FALLBACK = false;
+
         let progman = FindWindowW(wstr("Progman").as_ptr(), std::ptr::null());
         if progman == 0 {
             eprintln!("[wallpaper] Ошибка: окно Progman не найдено");
@@ -44,15 +49,13 @@ mod wallpaper {
         }
 
         let mut result: usize = 0;
-        // Первый вызов — стандартный (Windows 10)
+        // Стандартный вызов (Windows 10) + вариант для Windows 11
         SendMessageTimeoutW(progman, 0x052C, 0, 0, SMTO_NORMAL, 1000, &mut result as *mut usize as *mut _);
-        // Второй вызов с (0xD, 1) — создаёт WorkerW на Windows 11
         SendMessageTimeoutW(progman, 0x052C, 0xD, 1, SMTO_NORMAL, 1000, &mut result as *mut usize as *mut _);
 
+        // Попытка 1: backdrop WorkerW — тот что идёт после WorkerW с иконками (классика)
         WORKER_W = 0;
         EnumWindows(Some(find_worker_w), 0);
-
-        // Если WorkerW не нашёлся — ждём и пробуем ещё раз (Windows 11 создаёт его с задержкой)
         if WORKER_W == 0 {
             std::thread::sleep(std::time::Duration::from_millis(300));
             EnumWindows(Some(find_worker_w), 0);
@@ -62,16 +65,40 @@ mod wallpaper {
             EnumWindows(Some(find_worker_w), 0);
         }
 
-        let parent = if WORKER_W != 0 { WORKER_W } else { progman };
+        // Попытка 2: любой WorkerW без SHELLDLL_DefView (альтернатива для некоторых конфигов Win11)
+        if WORKER_W == 0 {
+            let mut w = FindWindowExW(0, 0, wstr("WorkerW").as_ptr(), std::ptr::null());
+            while w != 0 {
+                let sv = FindWindowExW(w, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null());
+                if sv == 0 {
+                    WORKER_W = w;
+                    break;
+                }
+                w = FindWindowExW(0, w, wstr("WorkerW").as_ptr(), std::ptr::null());
+            }
+        }
 
         let screen_w = GetSystemMetrics(SM_CXSCREEN);
         let screen_h = GetSystemMetrics(SM_CYSCREEN);
 
-        SetParent(hwnd, parent);
-        SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, screen_w, screen_h, SWP_NOACTIVATE);
-        ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-
-        println!("[wallpaper] Окно встроено в рабочий стол ({}x{}), WorkerW={}", screen_w, screen_h, WORKER_W);
+        if WORKER_W != 0 {
+            // Нашли WorkerW — стандартное встраивание
+            SetParent(hwnd, WORKER_W);
+            SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, screen_w, screen_h, SWP_NOACTIVATE);
+            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            println!("[wallpaper] WorkerW встраивание: {} ({}x{})", WORKER_W, screen_w, screen_h);
+        } else {
+            // Fallback: оставляем окно топ-левельным, ставим самым нижним через HWND_BOTTOM.
+            // Progman не принимает дочерние окна на некоторых конфигах Windows 11,
+            // поэтому SetParent туда не делаем.
+            IS_FALLBACK = true;
+            SetParent(hwnd, 0); // сбрасываем предыдущий родитель если был
+            let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+            SetWindowLongPtrW(hwnd, GWL_STYLE, style & !(WS_CHILD as isize));
+            SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, screen_w, screen_h,
+                SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            println!("[wallpaper] Fallback HWND_BOTTOM ({}x{}), без WorkerW", screen_w, screen_h);
+        }
     }
 }
 
@@ -1048,14 +1075,21 @@ pub fn run() {
                         if let Ok(hwnd_tauri) = w.hwnd() {
                             let hwnd = hwnd_tauri.0 as isize;
                             unsafe { wallpaper::embed_in_desktop(hwnd); }
-                            // Следим за тем, что окно не потеряло родителя
-                            // (Wallpaper Engine и подобные сбрасывают WorkerW при закрытии)
+                            // Периодически проверяем, что встраивание не слетело
                             loop {
                                 std::thread::sleep(std::time::Duration::from_secs(30));
-                                use windows_sys::Win32::UI::WindowsAndMessaging::GetParent;
-                                let parent = unsafe { GetParent(hwnd) };
-                                if parent == 0 {
-                                    println!("[wallpaper] Родитель потерян, повторное встраивание");
+                                let needs_reembed = if wallpaper::is_fallback() {
+                                    // В fallback-режиме (топ-левельное окно) GetParent всегда 0,
+                                    // поэтому проверяем видимость окна
+                                    use windows_sys::Win32::UI::WindowsAndMessaging::IsWindowVisible;
+                                    unsafe { IsWindowVisible(hwnd) == 0 }
+                                } else {
+                                    // В нормальном режиме родитель должен быть WorkerW (не 0)
+                                    use windows_sys::Win32::UI::WindowsAndMessaging::GetParent;
+                                    unsafe { GetParent(hwnd) == 0 }
+                                };
+                                if needs_reembed {
+                                    println!("[wallpaper] Переподключение к рабочему столу...");
                                     unsafe { wallpaper::embed_in_desktop(hwnd); }
                                 }
                             }
