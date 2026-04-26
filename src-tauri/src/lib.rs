@@ -88,17 +88,27 @@ mod wallpaper {
             ShowWindow(hwnd, SW_SHOWNOACTIVATE);
             println!("[wallpaper] WorkerW встраивание: {} ({}x{})", WORKER_W, screen_w, screen_h);
         } else {
-            // Fallback: оставляем окно топ-левельным, ставим самым нижним через HWND_BOTTOM.
-            // Progman не принимает дочерние окна на некоторых конфигах Windows 11,
-            // поэтому SetParent туда не делаем.
+            // Fallback: остаёмся топ-левельным, но позиционируемся НИЖЕ Progman.
+            // HWND_BOTTOM нельзя — на Windows 11 он оказывается ВЫШЕ Progman,
+            // перекрывая иконки. SetWindowPos(hwnd, progman, ...) вставляет нас
+            // в z-order сразу под Progman, и иконки рендерятся поверх нас.
             IS_FALLBACK = true;
-            SetParent(hwnd, 0); // сбрасываем предыдущий родитель если был
+            SetParent(hwnd, 0);
             let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
             SetWindowLongPtrW(hwnd, GWL_STYLE, style & !(WS_CHILD as isize));
-            SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, screen_w, screen_h,
-                SWP_NOACTIVATE | SWP_SHOWWINDOW);
-            println!("[wallpaper] Fallback HWND_BOTTOM ({}x{}), без WorkerW", screen_w, screen_h);
+            SetWindowPos(hwnd, progman, 0, 0, screen_w, screen_h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            println!("[wallpaper] Fallback: ниже Progman ({}x{})", screen_w, screen_h);
         }
+    }
+
+    // Лёгкое восстановление z-order в fallback-режиме (без 0x052C и sleep)
+    pub unsafe fn keep_below_progman(hwnd: HWND) {
+        if !IS_FALLBACK { return; }
+        let progman = FindWindowW(wstr("Progman").as_ptr(), std::ptr::null());
+        if progman == 0 { return; }
+        let screen_w = GetSystemMetrics(SM_CXSCREEN);
+        let screen_h = GetSystemMetrics(SM_CYSCREEN);
+        SetWindowPos(hwnd, progman, 0, 0, screen_w, screen_h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
 }
 
@@ -106,6 +116,9 @@ mod wallpaper {
 struct TrayState {
     autostart_item: Mutex<CheckMenuItem<tauri::Wry>>,
 }
+
+// ─── Состояние апдейтера ──────────────────────────────────────────────────────
+struct UpdateState(Mutex<Option<String>>);
 
 // ─── Состояние горячих клавиш ─────────────────────────────────────────────────
 struct HotkeyState {
@@ -981,6 +994,22 @@ async fn verify_ownership(contract: String, token_id: String, wallet: String) ->
     Ok(json.as_array().map_or(false, |arr| !arr.is_empty()))
 }
 
+// ─── Обновления ──────────────────────────────────────────────────────────────
+#[tauri::command]
+fn get_update_version(state: tauri::State<UpdateState>) -> Option<String> {
+    state.0.lock().unwrap().clone()
+}
+
+#[tauri::command]
+async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    if let Some(update) = updater.check().await.map_err(|e| e.to_string())? {
+        update.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // ─── Точка входа ─────────────────────────────────────────────────────────────
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1060,6 +1089,8 @@ pub fn run() {
             cleanup_expired_tokens,
             get_desktop_icons,
             clear_icon_selection,
+            get_update_version,
+            install_update,
         ])
         .setup(|app| {
             // ── Встраиваем главное окно в рабочий стол ───────────────────────
@@ -1075,24 +1106,44 @@ pub fn run() {
                         if let Ok(hwnd_tauri) = w.hwnd() {
                             let hwnd = hwnd_tauri.0 as isize;
                             unsafe { wallpaper::embed_in_desktop(hwnd); }
-                            // Периодически проверяем, что встраивание не слетело
+                            // Периодически проверяем встраивание
                             loop {
                                 std::thread::sleep(std::time::Duration::from_secs(30));
-                                let needs_reembed = if wallpaper::is_fallback() {
-                                    // В fallback-режиме (топ-левельное окно) GetParent всегда 0,
-                                    // поэтому проверяем видимость окна
-                                    use windows_sys::Win32::UI::WindowsAndMessaging::IsWindowVisible;
-                                    unsafe { IsWindowVisible(hwnd) == 0 }
+                                if wallpaper::is_fallback() {
+                                    // В fallback-режиме просто поддерживаем z-order ниже Progman
+                                    unsafe { wallpaper::keep_below_progman(hwnd); }
                                 } else {
-                                    // В нормальном режиме родитель должен быть WorkerW (не 0)
+                                    // В нормальном режиме проверяем, что WorkerW всё ещё наш родитель
                                     use windows_sys::Win32::UI::WindowsAndMessaging::GetParent;
-                                    unsafe { GetParent(hwnd) == 0 }
-                                };
-                                if needs_reembed {
-                                    println!("[wallpaper] Переподключение к рабочему столу...");
-                                    unsafe { wallpaper::embed_in_desktop(hwnd); }
+                                    if unsafe { GetParent(hwnd) } == 0 {
+                                        println!("[wallpaper] Переподключение к рабочему столу...");
+                                        unsafe { wallpaper::embed_in_desktop(hwnd); }
+                                    }
                                 }
                             }
+                        }
+                    }
+                });
+            }
+
+            // ── Состояние апдейтера + фоновая проверка ───────────────────────
+            app.manage(UpdateState(Mutex::new(None)));
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                    use tauri_plugin_updater::UpdaterExt;
+                    if let Ok(updater) = handle.updater() {
+                        match updater.check().await {
+                            Ok(Some(update)) => {
+                                println!("[updater] Доступно: {}", update.version);
+                                if let Some(s) = handle.try_state::<UpdateState>() {
+                                    *s.0.lock().unwrap() = Some(update.version.to_string());
+                                }
+                                let _ = handle.emit("update-available", update.version.to_string());
+                            }
+                            Ok(None) => println!("[updater] Обновлений нет"),
+                            Err(e)  => eprintln!("[updater] Ошибка: {}", e),
                         }
                     }
                 });

@@ -30,6 +30,31 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri -- build
 
+      - name: Generate latest.json
+        shell: pwsh
+        run: |
+          $msiDir = "src-tauri/target/release/bundle/msi"
+          $sigFile  = (Get-ChildItem "$msiDir" -Filter "*.msi.zip.sig")[0]
+          $zipFile  = (Get-ChildItem "$msiDir" -Filter "*.msi.zip")[0]
+          $sig  = (Get-Content $sigFile.FullName -Raw).Trim()
+          $tag  = "${{ github.ref_name }}"
+          $ver  = $tag.TrimStart('v')
+          $url  = "https://github.com/sooki-81/81.XOLCT/releases/download/$tag/$($zipFile.Name)"
+          $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $obj  = [PSCustomObject]@{
+            version  = $ver
+            notes    = ""
+            pub_date = $date
+            platforms = [PSCustomObject]@{
+              "windows-x86_64" = [PSCustomObject]@{
+                signature = $sig
+                url       = $url
+              }
+            }
+          }
+          $obj | ConvertTo-Json -Depth 5 | Set-Content "latest.json" -Encoding utf8NoBOM
+          Write-Host "Generated latest.json for $ver -> $url"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -37,12 +62,6 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/msi/*.msi.zip
             src-tauri/target/release/bundle/msi/*.msi.zip.sig
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload update manifest
-        uses: softprops/action-gh-release@v2
-        with:
-          files: latest.json
+            latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

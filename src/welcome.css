@@ -157,6 +157,47 @@
   z-index: 1;
 }
 
+/* ── Баннер обновления ──────────────────────────────────── */
+#update-banner {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(20, 20, 30, 0.92);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 10px 16px;
+  backdrop-filter: blur(12px);
+  white-space: nowrap;
+  z-index: 10;
+}
+
+#update-banner-text {
+  font-family: var(--font-main);
+  font-size: 13px;
+  color: var(--fg-subtle);
+}
+
+#btn-update {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--gradient-accent);
+  color: var(--fg);
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+#btn-update:hover { opacity: 0.85; }
+#btn-update:disabled { opacity: 0.5; cursor: default; }
+
 /* ── Превью стены ───────────────────────────────────────── */
 .welcome-preview {
   flex: 1;

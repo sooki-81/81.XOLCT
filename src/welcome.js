@@ -1,6 +1,8 @@
 import { applyTranslations } from './translations.js';
 
 const { getCurrentWindow } = window.__TAURI__.window;
+const { invoke } = window.__TAURI__.core;
+const { listen }  = window.__TAURI__.event;
 
 const win = getCurrentWindow();
 applyTranslations();
@@ -20,3 +22,29 @@ if (btnStart) {
     window.location.href = 'dashboard.html';
   });
 }
+
+// ── Обновления ────────────────────────────────────────────────────────────────
+function showUpdateBanner(version) {
+  const banner = document.getElementById('update-banner');
+  const text   = document.getElementById('update-banner-text');
+  if (!banner) return;
+  if (text) text.textContent = `Доступно обновление v${version}`;
+  banner.style.display = 'flex';
+}
+
+// Проверяем, не нашёл ли Rust обновление пока окно было закрыто
+invoke('get_update_version').then(v => { if (v) showUpdateBanner(v); }).catch(() => {});
+
+// Слушаем событие в реальном времени
+listen('update-available', e => showUpdateBanner(e.payload));
+
+document.getElementById('btn-update')?.addEventListener('click', async () => {
+  const btn = document.getElementById('btn-update');
+  if (btn) { btn.textContent = 'Устанавливаем…'; btn.disabled = true; }
+  try {
+    await invoke('install_update');
+  } catch (e) {
+    console.error('[update]', e);
+    if (btn) { btn.textContent = 'Обновить'; btn.disabled = false; }
+  }
+});
