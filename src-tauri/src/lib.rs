@@ -50,11 +50,14 @@ mod wallpaper {
         }
 
         let mut result: usize = 0;
-        // Стандартный вызов (Windows 10) + вариант для Windows 11
         SendMessageTimeoutW(progman, 0x052C, 0, 0, SMTO_NORMAL, 1000, &mut result as *mut usize as *mut _);
         SendMessageTimeoutW(progman, 0x052C, 0xD, 1, SMTO_NORMAL, 1000, &mut result as *mut usize as *mut _);
 
-        // Попытка 1: backdrop WorkerW — тот что идёт после WorkerW с иконками (классика)
+        let screen_w = GetSystemMetrics(SM_CXSCREEN);
+        let screen_h = GetSystemMetrics(SM_CYSCREEN);
+
+        // Попытка 1: классический backdrop WorkerW (Win10 и большинство Win11).
+        // 0x052C переместил SHELLDLL_DefView в отдельный WorkerW — ищем пустой WorkerW после него.
         WORKER_W = 0;
         EnumWindows(Some(find_worker_w), 0);
         if WORKER_W == 0 {
@@ -65,50 +68,48 @@ mod wallpaper {
             std::thread::sleep(std::time::Duration::from_millis(700));
             EnumWindows(Some(find_worker_w), 0);
         }
-
-        // Попытка 2: голый WorkerW — только если иконки уже перемещены из Progman.
-        // Если SHELLDLL_DefView остался в Progman, любой голый WorkerW находится ВЫШЕ
-        // Progman в z-order и наш холст перекроет иконки. Пропускаем → идём в fallback.
-        if WORKER_W == 0 {
-            let shelldll_in_progman = FindWindowExW(
-                progman, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null()
-            ) != 0;
-            if !shelldll_in_progman {
-                let mut w = FindWindowExW(0, 0, wstr("WorkerW").as_ptr(), std::ptr::null());
-                while w != 0 {
-                    let sv = FindWindowExW(w, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null());
-                    if sv == 0 {
-                        WORKER_W = w;
-                        break;
-                    }
-                    w = FindWindowExW(0, w, wstr("WorkerW").as_ptr(), std::ptr::null());
-                }
-            } else {
-                println!("[wallpaper] SHELLDLL_DefView в Progman → Attempt 2 пропущен, используем fallback");
-            }
-        }
-
-        let screen_w = GetSystemMetrics(SM_CXSCREEN);
-        let screen_h = GetSystemMetrics(SM_CYSCREEN);
-
         if WORKER_W != 0 {
-            // Нашли WorkerW — стандартное встраивание
             SetParent(hwnd, WORKER_W);
             SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, screen_w, screen_h, SWP_NOACTIVATE);
             ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-            println!("[wallpaper] WorkerW встраивание: {} ({}x{})", WORKER_W, screen_w, screen_h);
-        } else {
-            // Fallback: остаёмся топ-левельным, но позиционируемся НИЖЕ Progman.
-            // HWND_BOTTOM нельзя — на Windows 11 он оказывается ВЫШЕ Progman,
-            // перекрывая иконки. SetWindowPos(hwnd, progman, ...) вставляет нас
-            // в z-order сразу под Progman, и иконки рендерятся поверх нас.
-            IS_FALLBACK = true;
-            SetParent(hwnd, 0);
-            let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-            SetWindowLongPtrW(hwnd, GWL_STYLE, style & !(WS_CHILD as isize));
-            SetWindowPos(hwnd, progman, 0, 0, screen_w, screen_h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
-            println!("[wallpaper] Fallback: ниже Progman ({}x{})", screen_w, screen_h);
+            println!("[wallpaper] Попытка1 WorkerW: {} ({}x{})", WORKER_W, screen_w, screen_h);
+            return;
         }
+
+        // Попытка 2: 0x052C создал WorkerW, но SHELLDLL_DefView остался в Progman (некоторые Win11).
+        // Встраиваемся напрямую в Progman как дочернее окно, ниже SHELLDLL_DefView —
+        // тогда иконки (дети SHELLDLL_DefView) гарантированно рисуются поверх нас.
+        let shelldll = FindWindowExW(progman, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null());
+        if shelldll != 0 {
+            SetParent(hwnd, progman);
+            SetWindowPos(hwnd, shelldll, 0, 0, screen_w, screen_h, SWP_NOACTIVATE);
+            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            println!("[wallpaper] Попытка2 Progman (ниже SHELLDLL_DefView {}x{})", screen_w, screen_h);
+            return;
+        }
+
+        // Попытка 3: голый WorkerW без SHELLDLL_DefView (крайний случай).
+        let mut w = FindWindowExW(0, 0, wstr("WorkerW").as_ptr(), std::ptr::null());
+        while w != 0 {
+            let sv = FindWindowExW(w, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null());
+            if sv == 0 { WORKER_W = w; break; }
+            w = FindWindowExW(0, w, wstr("WorkerW").as_ptr(), std::ptr::null());
+        }
+        if WORKER_W != 0 {
+            SetParent(hwnd, WORKER_W);
+            SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, screen_w, screen_h, SWP_NOACTIVATE);
+            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            println!("[wallpaper] Попытка3 WorkerW: {} ({}x{})", WORKER_W, screen_w, screen_h);
+            return;
+        }
+
+        // Fallback: последний резерв — позиционируем под Progman в z-order.
+        IS_FALLBACK = true;
+        SetParent(hwnd, 0);
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        SetWindowLongPtrW(hwnd, GWL_STYLE, style & !(WS_CHILD as isize));
+        SetWindowPos(hwnd, progman, 0, 0, screen_w, screen_h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        println!("[wallpaper] Fallback: ниже Progman ({}x{})", screen_w, screen_h);
     }
 
     // Лёгкое восстановление z-order в fallback-режиме (без 0x052C и sleep)
