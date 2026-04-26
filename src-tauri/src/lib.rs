@@ -66,16 +66,25 @@ mod wallpaper {
             EnumWindows(Some(find_worker_w), 0);
         }
 
-        // Попытка 2: любой WorkerW без SHELLDLL_DefView (альтернатива для некоторых конфигов Win11)
+        // Попытка 2: голый WorkerW — только если иконки уже перемещены из Progman.
+        // Если SHELLDLL_DefView остался в Progman, любой голый WorkerW находится ВЫШЕ
+        // Progman в z-order и наш холст перекроет иконки. Пропускаем → идём в fallback.
         if WORKER_W == 0 {
-            let mut w = FindWindowExW(0, 0, wstr("WorkerW").as_ptr(), std::ptr::null());
-            while w != 0 {
-                let sv = FindWindowExW(w, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null());
-                if sv == 0 {
-                    WORKER_W = w;
-                    break;
+            let shelldll_in_progman = FindWindowExW(
+                progman, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null()
+            ) != 0;
+            if !shelldll_in_progman {
+                let mut w = FindWindowExW(0, 0, wstr("WorkerW").as_ptr(), std::ptr::null());
+                while w != 0 {
+                    let sv = FindWindowExW(w, 0, wstr("SHELLDLL_DefView").as_ptr(), std::ptr::null());
+                    if sv == 0 {
+                        WORKER_W = w;
+                        break;
+                    }
+                    w = FindWindowExW(0, w, wstr("WorkerW").as_ptr(), std::ptr::null());
                 }
-                w = FindWindowExW(0, w, wstr("WorkerW").as_ptr(), std::ptr::null());
+            } else {
+                println!("[wallpaper] SHELLDLL_DefView в Progman → Attempt 2 пропущен, используем fallback");
             }
         }
 
