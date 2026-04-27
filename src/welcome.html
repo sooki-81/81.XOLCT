@@ -64,21 +64,6 @@
         </button>
       </div>
 
-      <!-- Строка: мой код + кнопка отправить -->
-      <div class="gift-bar">
-        <div class="gift-bar-code">
-          <span class="gift-bar-label">Мой код</span>
-          <span id="my-code-value" class="gift-bar-value">…</span>
-          <button id="btn-copy-code" class="icon-btn" title="Скопировать код">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <rect x="9" y="9" width="13" height="13" rx="2" stroke="#656565" stroke-width="2"/>
-              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="#656565" stroke-width="2"/>
-            </svg>
-          </button>
-        </div>
-        <button id="btn-open-gift" class="gift-send-btn">Отправить другу →</button>
-      </div>
-
       <!-- Превью стены -->
       <div class="welcome-preview">
         <img src="./welcome-preview.webp" alt="Превью галереи" draggable="false" />
@@ -92,31 +77,9 @@
 
       <!-- Версия + ручная проверка -->
       <button id="btn-check-update" class="version-check-btn" title="Проверить обновления">
-        <span id="version-text">v1.0.9</span>
+        <span id="version-text">v1.1.0</span>
       </button>
 
-      <!-- Модальное окно отправки подарка -->
-      <div id="gift-modal" class="gift-modal" style="display:none">
-        <div class="gift-modal-inner">
-          <div class="gift-modal-title">Отправить подарок другу</div>
-          <input type="file" id="gift-file" accept="image/*" style="display:none">
-          <div id="gift-file-area" class="gift-file-area">
-            <span id="gift-file-label">Нажмите чтобы выбрать изображение</span>
-          </div>
-          <input id="gift-to-id" class="gift-input" type="text" placeholder="Код друга (вставь его код сюда)">
-          <input id="gift-message" class="gift-input" type="text" placeholder="Сообщение (необязательно)">
-          <select id="gift-expires" class="gift-input">
-            <option value="1">Исчезнет через 1 час</option>
-            <option value="24" selected>Исчезнет через 24 часа</option>
-            <option value="72">Исчезнет через 3 дня</option>
-          </select>
-          <div class="gift-modal-actions">
-            <button id="btn-cancel-gift" class="secondary-btn">Отмена</button>
-            <button id="btn-send-gift" class="welcome-start-btn" style="height:44px;padding:0 24px;">Отправить</button>
-          </div>
-          <div id="gift-status" class="gift-status"></div>
-        </div>
-      </div>
 
     </div>
 

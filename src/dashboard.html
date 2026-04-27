@@ -187,6 +187,14 @@
                 <line x1="2" y1="10" x2="18" y2="10" stroke="white" stroke-width="2" stroke-linecap="round"/>
               </svg>
             </button>
+            <button class="dash-gift-btn" id="dash-gift-btn" title="Отправить объект другу">
+              <svg width="20" height="20" viewBox="0 0 22 22" fill="none">
+                <path d="M3 9h16v11H3z" stroke="white" stroke-width="1.6" stroke-linejoin="round"/>
+                <path d="M2 6h18v3H2z" stroke="white" stroke-width="1.6" stroke-linejoin="round"/>
+                <path d="M11 6v14" stroke="white" stroke-width="1.6"/>
+                <path d="M11 6c-2 0-4-1-4-2.5S8.5 2 11 6c2.5-4 4-4 4-2.5S13 6 11 6z" stroke="white" stroke-width="1.6" stroke-linejoin="round"/>
+              </svg>
+            </button>
             <button class="dash-save-btn" id="dash-save-btn" data-active="false">
               <svg width="20" height="14" viewBox="0 0 20 14" fill="none">
                 <polyline points="1,7 6,12 19,1" stroke="#656565" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -313,6 +321,80 @@
           </div>
 
           <p class="dash-popup-error" id="popup-error"></p>
+        </div>
+
+        <!-- Попап отправки объекта другу — заполнение формы -->
+        <div class="dash-popup gift-form-popup hidden" id="gift-form-popup">
+          <div class="dash-popup-top">
+            <div class="dash-popup-title">Отправить объект другу</div>
+            <button class="dash-popup-close" id="gift-form-close">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <line x1="0" y1="0" x2="14" y2="14" stroke="white" stroke-width="2"/>
+                <line x1="14" y1="0" x2="0" y2="14" stroke="white" stroke-width="2"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="gift-mycode-block">
+            <span class="gift-mycode-label">Твой код</span>
+            <span class="gift-mycode-value" id="gift-form-mycode">…</span>
+            <button class="gift-mycode-copy" id="gift-form-copy" title="Скопировать">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+          </div>
+
+          <input class="gift-form-input" id="gift-form-url" type="url" placeholder="Ссылка на объект (objkt.com или Pinterest)" autocomplete="off" spellcheck="false" />
+          <input class="gift-form-input" id="gift-form-toid" type="text" placeholder="Код друга" autocomplete="off" spellcheck="false" />
+          <input class="gift-form-input" id="gift-form-fromname" type="text" placeholder="От кого (твоё имя)" autocomplete="off" />
+          <input class="gift-form-input" id="gift-form-message" type="text" placeholder="Сообщение (необязательно)" autocomplete="off" />
+          <select class="gift-form-input gift-form-select" id="gift-form-expires">
+            <option value="2">Исчезнет через 2 часа</option>
+            <option value="8" selected>Исчезнет через 8 часов</option>
+            <option value="24">Исчезнет через 24 часа</option>
+          </select>
+
+          <p class="dash-popup-error" id="gift-form-error"></p>
+
+          <div class="gift-form-actions">
+            <button class="gift-cancel-btn" id="gift-form-cancel">Отменить</button>
+            <button class="gift-next-btn" id="gift-form-next">Далее</button>
+          </div>
+        </div>
+
+        <!-- Попап отправки — превью размещения -->
+        <div class="dash-popup gift-placement-popup hidden" id="gift-placement-popup">
+          <div class="dash-popup-top">
+            <div class="dash-popup-title">Где разместить у друга</div>
+            <button class="dash-popup-close" id="gift-placement-close">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <line x1="0" y1="0" x2="14" y2="14" stroke="white" stroke-width="2"/>
+                <line x1="14" y1="0" x2="0" y2="14" stroke="white" stroke-width="2"/>
+              </svg>
+            </button>
+          </div>
+
+          <p class="dash-popup-desc">Перетащи и измени размер. Так твой объект увидит друг на своём экране.</p>
+
+          <div class="gift-placement-canvas" id="gift-placement-canvas">
+            <div class="gift-placement-card" id="gift-placement-card">
+              <img class="gift-placement-image" id="gift-placement-image" alt="" draggable="false" />
+              <div class="gift-placement-meta">
+                <div class="gift-placement-from" id="gift-placement-from"></div>
+                <div class="gift-placement-message" id="gift-placement-message"></div>
+              </div>
+              <div class="gift-placement-resize" id="gift-placement-resize"></div>
+            </div>
+          </div>
+
+          <p class="dash-popup-error" id="gift-placement-error"></p>
+
+          <div class="gift-form-actions">
+            <button class="gift-cancel-btn" id="gift-placement-back">Назад</button>
+            <button class="gift-next-btn" id="gift-placement-send">Отправить</button>
+          </div>
         </div>
 
       </div>

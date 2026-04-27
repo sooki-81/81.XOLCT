@@ -141,14 +141,31 @@ struct MyCodeState(Mutex<String>);
 struct Gift {
     id: String,
     from_id: String,
+    #[serde(default)]
+    from_name: String,
     to_id: String,
     image_url: String,
     #[serde(default)]
+    name: String,
+    #[serde(default)]
+    creators: Vec<String>,
+    #[serde(default)]
+    source: String,
+    #[serde(default)]
     message: String,
+    #[serde(default = "default_pos")]
+    pos_x: f32,
+    #[serde(default = "default_pos")]
+    pos_y: f32,
+    #[serde(default = "default_width")]
+    width_pct: f32,
     expires_at: String,
     #[serde(default)]
     created_at: String,
 }
+
+fn default_pos()   -> f32 { 0.5 }
+fn default_width() -> f32 { 0.15 }
 
 // ─── Состояние горячих клавиш ─────────────────────────────────────────────────
 struct HotkeyState {
@@ -1199,47 +1216,20 @@ async fn dismiss_gift(gift_id: String) -> Result<(), String> {
 async fn send_gift(
     state: tauri::State<'_, MyCodeState>,
     to_id: String,
-    image_path: String,
+    from_name: String,
+    name: String,
+    creators: Vec<String>,
+    image_url: String,
+    source: String,
     message: String,
     expires_hours: u32,
+    pos_x: f32,
+    pos_y: f32,
+    width_pct: f32,
 ) -> Result<(), String> {
     let from_id = state.0.lock().unwrap().clone();
-    let bytes = fs::read(&image_path).map_err(|e| format!("Файл не читается: {}", e))?;
-    let ext = std::path::Path::new(&image_path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("png")
-        .to_lowercase();
-    let ct = match ext.as_str() {
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif"          => "image/gif",
-        "webp"         => "image/webp",
-        _              => "image/png",
-    };
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let storage_path = format!("{}/{}.{}", from_id, ts, ext);
     let client = reqwest::Client::new();
-
-    // 1. Загружаем файл в Supabase Storage
-    let up = client
-        .post(format!("{}/storage/v1/object/gifts/{}", SUPABASE_URL, storage_path))
-        .header("Authorization", format!("Bearer {}", SUPABASE_KEY))
-        .header("apikey", SUPABASE_KEY)
-        .header("Content-Type", ct)
-        .body(bytes)
-        .send()
-        .await
-        .map_err(|e| format!("Ошибка загрузки: {}", e))?;
-    if !up.status().is_success() {
-        return Err(format!("Storage {}: {}", up.status(), up.text().await.unwrap_or_default()));
-    }
-
-    // 2. Записываем подарок в БД
-    let public_url = format!("{}/storage/v1/object/public/gifts/{}", SUPABASE_URL, storage_path);
-    let db = client
+    let resp = client
         .post(format!("{}/rest/v1/gifts", SUPABASE_URL))
         .header("Authorization", format!("Bearer {}", SUPABASE_KEY))
         .header("apikey", SUPABASE_KEY)
@@ -1247,16 +1237,23 @@ async fn send_gift(
         .header("Prefer", "return=minimal")
         .json(&serde_json::json!({
             "from_id":    from_id,
+            "from_name":  from_name,
             "to_id":      to_id,
-            "image_url":  public_url,
+            "name":       name,
+            "creators":   creators,
+            "image_url":  image_url,
+            "source":     source,
             "message":    message,
+            "pos_x":      pos_x,
+            "pos_y":      pos_y,
+            "width_pct":  width_pct,
             "expires_at": future_iso8601(expires_hours.max(1)),
         }))
         .send()
         .await
         .map_err(|e| format!("Ошибка записи: {}", e))?;
-    if !db.status().is_success() {
-        return Err(format!("DB {}: {}", db.status(), db.text().await.unwrap_or_default()));
+    if !resp.status().is_success() {
+        return Err(format!("DB {}: {}", resp.status(), resp.text().await.unwrap_or_default()));
     }
     Ok(())
 }

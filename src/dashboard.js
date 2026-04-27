@@ -1,7 +1,7 @@
 import { t, applyTranslations } from './translations.js';
 
-const { invoke } = window.__TAURI__.core;
-const { emit }   = window.__TAURI__.event;
+const { invoke }       = window.__TAURI__.core;
+const { emit, listen } = window.__TAURI__.event;
 
 // ─── Настройки (боковая панель) ───────────────────────────────────────────────
 let currentSettings = {};
@@ -1422,6 +1422,280 @@ setInterval(() => {
 document.getElementById('btn-settings').addEventListener('click', () => {
   window.location.href = 'settings.html';
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ПОДАРКИ — отправка и приём
+// ═══════════════════════════════════════════════════════════════════════════
+const giftBtn          = document.getElementById('dash-gift-btn');
+const giftFormPopup    = document.getElementById('gift-form-popup');
+const giftFormClose    = document.getElementById('gift-form-close');
+const giftFormCancel   = document.getElementById('gift-form-cancel');
+const giftFormNext     = document.getElementById('gift-form-next');
+const giftFormUrl      = document.getElementById('gift-form-url');
+const giftFormToId     = document.getElementById('gift-form-toid');
+const giftFormFromName = document.getElementById('gift-form-fromname');
+const giftFormMessage  = document.getElementById('gift-form-message');
+const giftFormExpires  = document.getElementById('gift-form-expires');
+const giftFormError    = document.getElementById('gift-form-error');
+const giftFormMyCode   = document.getElementById('gift-form-mycode');
+const giftFormCopy     = document.getElementById('gift-form-copy');
+
+const giftPlacePopup    = document.getElementById('gift-placement-popup');
+const giftPlaceClose    = document.getElementById('gift-placement-close');
+const giftPlaceBack     = document.getElementById('gift-placement-back');
+const giftPlaceSend     = document.getElementById('gift-placement-send');
+const giftPlaceCanvasEl = document.getElementById('gift-placement-canvas');
+const giftPlaceCard     = document.getElementById('gift-placement-card');
+const giftPlaceImage    = document.getElementById('gift-placement-image');
+const giftPlaceFromEl   = document.getElementById('gift-placement-from');
+const giftPlaceMsgEl    = document.getElementById('gift-placement-message');
+const giftPlaceResize   = document.getElementById('gift-placement-resize');
+const giftPlaceError    = document.getElementById('gift-placement-error');
+
+invoke('get_my_code').then(c => { if (giftFormMyCode) giftFormMyCode.textContent = c; }).catch(() => {});
+giftFormCopy?.addEventListener('click', async () => {
+  const c = giftFormMyCode?.textContent;
+  if (c && c !== '…') {
+    try { await navigator.clipboard.writeText(c); } catch {}
+    giftFormCopy.title = 'Скопировано';
+    setTimeout(() => { giftFormCopy.title = 'Скопировать'; }, 1500);
+  }
+});
+
+let pendingGift = null;
+
+function openGiftForm() {
+  overlay.classList.remove('hidden');
+  giftFormPopup.classList.remove('hidden');
+  giftFormError.textContent = '';
+}
+function closeGiftAll() {
+  giftFormPopup.classList.add('hidden');
+  giftPlacePopup.classList.add('hidden');
+  overlay.classList.add('hidden');
+  pendingGift = null;
+}
+function gotoPlacement() { giftFormPopup.classList.add('hidden'); giftPlacePopup.classList.remove('hidden'); }
+function gotoForm()      { giftPlacePopup.classList.add('hidden'); giftFormPopup.classList.remove('hidden'); }
+
+giftBtn?.addEventListener('click', openGiftForm);
+giftFormClose?.addEventListener('click', closeGiftAll);
+giftFormCancel?.addEventListener('click', closeGiftAll);
+giftPlaceClose?.addEventListener('click', closeGiftAll);
+giftPlaceBack?.addEventListener('click', gotoForm);
+
+giftFormNext?.addEventListener('click', async () => {
+  const url      = giftFormUrl.value.trim();
+  const toId     = giftFormToId.value.trim();
+  const fromName = giftFormFromName.value.trim();
+  const message  = giftFormMessage.value.trim();
+  const hours    = parseInt(giftFormExpires.value || '8');
+
+  if (!url)      { giftFormError.textContent = 'Введи ссылку на объект'; return; }
+  if (!toId)     { giftFormError.textContent = 'Введи код друга';        return; }
+  if (!fromName) { giftFormError.textContent = 'Укажи своё имя';         return; }
+
+  giftFormNext.disabled = true;
+  giftFormNext.innerHTML = '<div class="dash-spinner"></div>';
+  giftFormError.textContent = '';
+
+  try {
+    const token = await invoke('fetch_token', { url });
+    if (!token.display_uri) throw new Error('Не удалось получить картинку');
+
+    pendingGift = {
+      token, toId, fromName, message,
+      expiresHours: hours,
+      posX: 0.5, posY: 0.5, widthPct: 0.15,
+      ratio: 1,
+    };
+
+    giftPlaceImage.src = token.display_uri;
+    giftPlaceFromEl.textContent = 'от ' + fromName;
+    if (message) { giftPlaceMsgEl.textContent = message; giftPlaceMsgEl.style.display = ''; }
+    else { giftPlaceMsgEl.style.display = 'none'; }
+
+    giftPlaceImage.onload  = () => {
+      pendingGift.ratio = (giftPlaceImage.naturalWidth || 1) / (giftPlaceImage.naturalHeight || 1);
+      gotoPlacement();
+      requestAnimationFrame(positionPlaceCard);
+    };
+    giftPlaceImage.onerror = () => { gotoPlacement(); requestAnimationFrame(positionPlaceCard); };
+  } catch (e) {
+    console.error('[gift]', e);
+    giftFormError.textContent = typeof e === 'string' ? e : 'Не удалось загрузить';
+  } finally {
+    giftFormNext.disabled = false;
+    giftFormNext.textContent = 'Далее';
+  }
+});
+
+function positionPlaceCard() {
+  if (!pendingGift || !giftPlaceCanvasEl) return;
+  const cw = giftPlaceCanvasEl.clientWidth;
+  const ch = giftPlaceCanvasEl.clientHeight;
+  const cardW = pendingGift.widthPct * cw;
+  const cardH = (cardW / pendingGift.ratio) + 22;
+  const left = pendingGift.posX * cw - cardW / 2;
+  const top  = pendingGift.posY * ch - cardH / 2;
+  Object.assign(giftPlaceCard.style, {
+    left:   Math.max(0, Math.min(cw - cardW, left)) + 'px',
+    top:    Math.max(0, Math.min(ch - cardH, top))  + 'px',
+    width:  cardW + 'px',
+    height: cardH + 'px',
+  });
+}
+
+let placeDrag = null;
+giftPlaceCard?.addEventListener('mousedown', (e) => {
+  if (e.target === giftPlaceResize) return;
+  placeDrag = {
+    type: 'move',
+    startMX: e.clientX, startMY: e.clientY,
+    origLeft: giftPlaceCard.offsetLeft,
+    origTop:  giftPlaceCard.offsetTop,
+  };
+  e.preventDefault();
+});
+giftPlaceResize?.addEventListener('mousedown', (e) => {
+  e.stopPropagation();
+  placeDrag = { type: 'resize', startMX: e.clientX, origW: giftPlaceCard.offsetWidth };
+  e.preventDefault();
+});
+document.addEventListener('mousemove', (e) => {
+  if (!placeDrag || !pendingGift) return;
+  const cw = giftPlaceCanvasEl.clientWidth;
+  const ch = giftPlaceCanvasEl.clientHeight;
+  if (placeDrag.type === 'move') {
+    const newLeft = placeDrag.origLeft + (e.clientX - placeDrag.startMX);
+    const newTop  = placeDrag.origTop  + (e.clientY - placeDrag.startMY);
+    const cardW = giftPlaceCard.offsetWidth;
+    const cardH = giftPlaceCard.offsetHeight;
+    const x = Math.max(0, Math.min(cw - cardW, newLeft));
+    const y = Math.max(0, Math.min(ch - cardH, newTop));
+    giftPlaceCard.style.left = x + 'px';
+    giftPlaceCard.style.top  = y + 'px';
+    pendingGift.posX = (x + cardW / 2) / cw;
+    pendingGift.posY = (y + cardH / 2) / ch;
+  } else {
+    let newW = placeDrag.origW + (e.clientX - placeDrag.startMX);
+    newW = Math.max(40, Math.min(cw * 0.45, newW));
+    const newH = newW / pendingGift.ratio + 22;
+    giftPlaceCard.style.width  = newW + 'px';
+    giftPlaceCard.style.height = newH + 'px';
+    pendingGift.widthPct = newW / cw;
+    if (giftPlaceCard.offsetLeft + newW > cw) giftPlaceCard.style.left = (cw - newW) + 'px';
+    if (giftPlaceCard.offsetTop  + newH > ch) giftPlaceCard.style.top  = (ch - newH) + 'px';
+    pendingGift.posX = (giftPlaceCard.offsetLeft + newW / 2) / cw;
+    pendingGift.posY = (giftPlaceCard.offsetTop  + newH / 2) / ch;
+  }
+});
+document.addEventListener('mouseup', () => { placeDrag = null; });
+
+giftPlaceSend?.addEventListener('click', async () => {
+  if (!pendingGift) return;
+  giftPlaceSend.disabled = true;
+  giftPlaceSend.innerHTML = '<div class="dash-spinner"></div>';
+  giftPlaceError.textContent = '';
+  try {
+    const t = pendingGift.token;
+    await invoke('send_gift', {
+      toId:        pendingGift.toId,
+      fromName:    pendingGift.fromName,
+      name:        t.name || '',
+      creators:    t.creators || [],
+      imageUrl:    t.display_uri,
+      source:      t.source || 'pinterest',
+      message:     pendingGift.message,
+      expiresHours: pendingGift.expiresHours,
+      posX:        pendingGift.posX,
+      posY:        pendingGift.posY,
+      widthPct:    pendingGift.widthPct,
+    });
+    closeGiftAll();
+    giftFormUrl.value = '';
+    giftFormToId.value = '';
+    giftFormMessage.value = '';
+  } catch (e) {
+    console.error('[gift-send]', e);
+    giftPlaceError.textContent = typeof e === 'string' ? e : 'Не удалось отправить';
+  } finally {
+    giftPlaceSend.disabled = false;
+    giftPlaceSend.textContent = 'Отправить';
+  }
+});
+
+// ─── Входящие подарки на дашборде ────────────────────────────────────────────
+const dashGifts = new Map();
+
+function renderDashGift(gift) {
+  if (dashGifts.has(gift.id)) return;
+  const right = document.querySelector('.dash-right');
+  if (!right) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dash-incoming-gift';
+  const widthPx = Math.max(60, gift.width_pct * right.clientWidth);
+  Object.assign(wrap.style, {
+    position: 'absolute',
+    left: (gift.pos_x * right.clientWidth) + 'px',
+    top:  (gift.pos_y * right.clientHeight) + 'px',
+    width: widthPx + 'px',
+    transform: 'translate(-50%, -50%)',
+    background: 'rgba(0,0,0,0.55)',
+    border: '1px solid rgba(255,255,255,0.18)',
+    borderRadius: '8px',
+    overflow: 'visible',
+    zIndex: '4',
+    pointerEvents: 'auto',
+  });
+
+  const inner = document.createElement('div');
+  inner.style.cssText = 'overflow:hidden;border-radius:8px;';
+  const img = document.createElement('img');
+  img.src = gift.image_url;
+  img.style.cssText = 'width:100%;display:block;';
+  inner.appendChild(img);
+
+  const meta = document.createElement('div');
+  meta.style.cssText = 'padding:6px 8px;font-family:var(--font-main);font-size:11px;color:var(--fg-subtle);line-height:1.3;background:rgba(0,0,0,0.55);';
+  const fromLine = document.createElement('div');
+  fromLine.textContent = 'от ' + (gift.from_name || 'неизвестно');
+  fromLine.style.cssText = 'color:var(--fg);font-weight:600;';
+  meta.appendChild(fromLine);
+  if (gift.message) {
+    const msg = document.createElement('div');
+    msg.textContent = gift.message;
+    msg.style.cssText = 'color:rgba(255,255,255,0.65);';
+    meta.appendChild(msg);
+  }
+  inner.appendChild(meta);
+  wrap.appendChild(inner);
+
+  const close = document.createElement('button');
+  close.textContent = '×';
+  close.style.cssText = 'position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:50%;background:#FF453A;color:#fff;border:none;cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
+  close.addEventListener('click', async () => {
+    wrap.remove();
+    dashGifts.delete(gift.id);
+    try { await invoke('dismiss_gift', { giftId: gift.id }); } catch {}
+    await emit('gift-dismissed', gift.id);
+  });
+  wrap.appendChild(close);
+
+  right.appendChild(wrap);
+  dashGifts.set(gift.id, wrap);
+}
+
+async function loadIncomingGifts() {
+  try {
+    const gifts = await invoke('get_incoming_gifts');
+    gifts.forEach(renderDashGift);
+  } catch (e) { console.warn('[gifts]', e); }
+}
+
+loadIncomingGifts();
+listen('gift-received', e => renderDashGift(e.payload));
 
 // ─── Запуск ───────────────────────────────────────────────────────────────────
 init();

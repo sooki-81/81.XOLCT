@@ -303,6 +303,27 @@
 .dash-add-btn:hover::after { opacity: 1; }
 .dash-add-btn > * { position: relative; z-index: 1; }
 
+/* Кнопка отправки подарка — 8px правее плюсика */
+.dash-gift-btn {
+  position: absolute;
+  left: 72px;
+  bottom: 14px;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, border-color 0.2s;
+}
+.dash-gift-btn:hover {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.25);
+}
+
 .dash-save-btn {
   position: absolute;
   right: 16px;
@@ -881,4 +902,192 @@
   font-size: 12px;
   color: rgba(255, 255, 255, 0.3);
   text-align: center;
+}
+
+/* ─── Попап отправки подарка ─────────────────────────────────────────────── */
+.gift-form-popup {
+  width: 460px;
+  gap: 14px;
+  padding: 32px 36px;
+}
+.gift-placement-popup {
+  width: 640px;
+  gap: 14px;
+  padding: 32px 36px;
+}
+
+/* Блок "Твой код" внутри формы */
+.gift-mycode-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+}
+.gift-mycode-label {
+  font-family: var(--font-main);
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.gift-mycode-value {
+  flex: 1;
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.04em;
+  user-select: all;
+}
+.gift-mycode-copy {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.gift-mycode-copy:hover { color: var(--fg); border-color: rgba(255,255,255,0.25); }
+
+/* Поля ввода — стиль settings-toggle (тёмный, прозрачный) */
+.gift-form-input {
+  height: 44px;
+  padding: 0 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  color: var(--fg);
+  font-family: var(--font-main);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.gift-form-input::placeholder { color: rgba(255,255,255,0.35); }
+.gift-form-input:focus {
+  border-color: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.06);
+}
+
+/* Кастомный select — без яркой обводки, с боковым отступом для стрелки */
+.gift-form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'><path d='M1 1.5L6 6.5L11 1.5' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+}
+.gift-form-select option {
+  background: var(--bg);
+  color: var(--fg);
+  padding: 10px;
+}
+
+/* Кнопки действий — отступ снизу равен боковому padding popup */
+.gift-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* Кнопка "Отменить" — error-стиль (как dash-confirm-delete) */
+.gift-cancel-btn {
+  height: 44px;
+  padding: 0 22px;
+  border-radius: 10px;
+  border: 1px solid #FF453A;
+  background: rgba(255, 69, 58, 0.10);
+  color: #FF453A;
+  font-family: var(--font-main);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.gift-cancel-btn:hover {
+  background: #FF453A;
+  color: #ffffff;
+}
+
+/* Кнопка "Далее"/"Отправить" — основная (синяя) */
+.gift-next-btn {
+  height: 44px;
+  padding: 0 26px;
+  border-radius: 10px;
+  border: 1px solid var(--bg-accent-blue);
+  background: #000718;
+  color: var(--fg);
+  font-family: var(--font-main);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.gift-next-btn:hover:not(:disabled) { background: var(--bg-accent-blue); }
+.gift-next-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* Холст превью размещения */
+.gift-placement-canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: default;
+}
+
+/* Карточка-превью внутри холста — перетаскиваемая */
+.gift-placement-card {
+  position: absolute;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: move;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+}
+.gift-placement-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  pointer-events: none;
+}
+.gift-placement-meta {
+  padding: 4px 6px;
+  font-family: var(--font-main);
+  font-size: 9px;
+  line-height: 1.3;
+  color: var(--fg-subtle);
+}
+.gift-placement-from {
+  font-weight: 600;
+  color: var(--fg);
+}
+.gift-placement-message {
+  color: rgba(255,255,255,0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gift-placement-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: se-resize;
+  background: linear-gradient(135deg, transparent 0%, transparent 50%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.5) 100%);
 }

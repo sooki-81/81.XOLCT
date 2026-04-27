@@ -291,3 +291,46 @@
   color: var(--fg);
   border-color: var(--fg-subtle);
 }
+
+/* ── Мой код для подарков ────────────────────────────────────── */
+.settings-mycode-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+}
+.settings-mycode-value {
+  flex: 1;
+  font-family: monospace;
+  font-size: 14px;
+  color: var(--fg);
+  letter-spacing: 0.04em;
+  user-select: all;
+}
+.settings-mycode-copy {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.settings-mycode-copy:hover {
+  color: var(--fg);
+  border-color: rgba(255,255,255,0.3);
+}
+.settings-mycode-desc {
+  font-family: var(--font-main);
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 8px 0 0;
+  line-height: 1.4;
+}

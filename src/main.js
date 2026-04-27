@@ -464,49 +464,56 @@ window.addEventListener('resize', () => {
 });
 
 // ─── Подарки на рабочем столе ────────────────────────────────────────────────
+// Подарок — обычный объект на обоях в позиции, заданной отправителем.
+// Закрыть нельзя — только в дашборде.
 const activeGifts = new Map();
 
 function showGift(gift) {
   if (activeGifts.has(gift.id)) return;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const widthPx = Math.max(80, (gift.width_pct || 0.15) * vw);
+
   const wrap = document.createElement('div');
-  const offset = activeGifts.size * 12;
-  wrap.style.cssText = `
-    position:fixed;
-    bottom:${48 + offset}px;
-    right:${48 + offset}px;
-    max-width:220px;
-    pointer-events:auto;
-    border-radius:14px;
-    overflow:hidden;
-    box-shadow:0 8px 40px rgba(0,0,0,0.85);
-    z-index:300;
-    animation:giftIn .45s cubic-bezier(.16,1,.3,1);
-  `;
+  wrap.style.cssText = [
+    'position:fixed',
+    'left:'   + ((gift.pos_x || 0.5) * vw) + 'px',
+    'top:'    + ((gift.pos_y || 0.5) * vh) + 'px',
+    'width:'  + widthPx + 'px',
+    'transform:translate(-50%,-50%)',
+    'border-radius:10px',
+    'overflow:hidden',
+    'box-shadow:0 6px 24px rgba(0,0,0,0.6)',
+    'z-index:150',
+    'animation:giftIn .45s cubic-bezier(.16,1,.3,1)',
+  ].join(';');
 
   const img = document.createElement('img');
   img.src = gift.image_url;
   img.style.cssText = 'width:100%;display:block;';
+  wrap.appendChild(img);
 
+  const meta = document.createElement('div');
+  meta.style.cssText = 'padding:6px 10px;background:rgba(0,0,0,0.6);color:var(--fg-subtle, #ccc);font-family:sans-serif;font-size:11px;line-height:1.3;';
+  const fromLine = document.createElement('div');
+  fromLine.textContent = 'от ' + (gift.from_name || 'неизвестно');
+  fromLine.style.cssText = 'color:#fff;font-weight:600;';
+  meta.appendChild(fromLine);
   if (gift.message) {
     const msg = document.createElement('div');
     msg.textContent = gift.message;
-    msg.style.cssText = 'padding:8px 12px;background:rgba(10,10,15,.92);color:#e0e0e0;font-size:12px;line-height:1.4;font-family:sans-serif;';
-    wrap.appendChild(msg);
+    msg.style.cssText = 'color:rgba(255,255,255,0.7);';
+    meta.appendChild(msg);
   }
-  wrap.appendChild(img);
-
-  const close = document.createElement('button');
-  close.textContent = '×';
-  close.style.cssText = 'position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.75);color:#fff;border:none;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;';
-  close.addEventListener('click', async () => {
-    wrap.remove();
-    activeGifts.delete(gift.id);
-    invoke('dismiss_gift', { giftId: gift.id }).catch(() => {});
-  });
-  wrap.appendChild(close);
+  wrap.appendChild(meta);
 
   document.body.appendChild(wrap);
   activeGifts.set(gift.id, wrap);
+}
+
+function removeGift(giftId) {
+  const el = activeGifts.get(giftId);
+  if (el) { el.remove(); activeGifts.delete(giftId); }
 }
 
 // ─── Старт ───────────────────────────────────────────────────────────────────
@@ -564,12 +571,13 @@ async function init() {
   await updateIconUnderlays();
   setInterval(updateIconUnderlays, 1000);
 
-  // Входящие подарки: загружаем активные + слушаем новые
+  // Входящие подарки: загружаем активные + слушаем новые/закрытые
   try {
     const gifts = await invoke('get_incoming_gifts');
     gifts.forEach(showGift);
   } catch (e) { console.warn('[gifts]', e); }
-  await listen('gift-received', e => showGift(e.payload));
+  await listen('gift-received',  e => showGift(e.payload));
+  await listen('gift-dismissed', e => removeGift(e.payload));
 
   // Авторетрай: как только появится сеть — сбрасываем счётчик и перестраиваем стену
   window.addEventListener('online', async () => {

@@ -24,6 +24,22 @@ async function init() {
     };
   }
 
+  // ── Мой код для подарков ────────────────────────────────────────────────────
+  try {
+    const code = await invoke('get_my_code');
+    const valEl = document.getElementById('settings-mycode-value');
+    if (valEl) valEl.textContent = code;
+  } catch (_) {}
+  document.getElementById('settings-mycode-copy')?.addEventListener('click', async () => {
+    const valEl = document.getElementById('settings-mycode-value');
+    const code = valEl?.textContent;
+    if (code && code !== '…') {
+      try { await navigator.clipboard.writeText(code); } catch {}
+      const btn = document.getElementById('settings-mycode-copy');
+      if (btn) { btn.title = 'Скопировано'; setTimeout(() => { btn.title = 'Скопировать'; }, 1500); }
+    }
+  });
+
   // ── Переключатели ────────────────────────────────────────────────────────────
   let autoStartEnabled = false;
   try { autoStartEnabled = await invoke('get_autostart_enabled'); } catch (_) {}
