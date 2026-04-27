@@ -1031,6 +1031,28 @@ fn get_update_version(state: tauri::State<UpdateState>) -> Option<String> {
 }
 
 #[tauri::command]
+async fn check_for_updates(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    match updater.check().await.map_err(|e| e.to_string())? {
+        Some(update) => {
+            let v = update.version.to_string();
+            if let Some(s) = app.try_state::<UpdateState>() {
+                *s.0.lock().unwrap() = Some(v.clone());
+            }
+            let _ = app.emit("update-available", v.clone());
+            Ok(Some(v))
+        }
+        None => {
+            if let Some(s) = app.try_state::<UpdateState>() {
+                *s.0.lock().unwrap() = None;
+            }
+            Ok(None)
+        }
+    }
+}
+
+#[tauri::command]
 async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_updater::UpdaterExt;
     let updater = app.updater().map_err(|e| e.to_string())?;
@@ -1319,6 +1341,7 @@ pub fn run() {
             get_desktop_icons,
             clear_icon_selection,
             get_update_version,
+            check_for_updates,
             install_update,
             get_my_code,
             send_gift,
@@ -1386,20 +1409,25 @@ pub fn run() {
             {
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
                     use tauri_plugin_updater::UpdaterExt;
-                    if let Ok(updater) = handle.updater() {
-                        match updater.check().await {
-                            Ok(Some(update)) => {
-                                println!("[updater] Доступно: {}", update.version);
-                                if let Some(s) = handle.try_state::<UpdateState>() {
-                                    *s.0.lock().unwrap() = Some(update.version.to_string());
+                    // Первая проверка через 3 сек после старта, затем каждые 30 минут
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    loop {
+                        if let Ok(updater) = handle.updater() {
+                            match updater.check().await {
+                                Ok(Some(update)) => {
+                                    println!("[updater] Доступно: {}", update.version);
+                                    let v = update.version.to_string();
+                                    if let Some(s) = handle.try_state::<UpdateState>() {
+                                        *s.0.lock().unwrap() = Some(v.clone());
+                                    }
+                                    let _ = handle.emit("update-available", v);
                                 }
-                                let _ = handle.emit("update-available", update.version.to_string());
+                                Ok(None) => println!("[updater] Обновлений нет"),
+                                Err(e)  => eprintln!("[updater] Ошибка: {}", e),
                             }
-                            Ok(None) => println!("[updater] Обновлений нет"),
-                            Err(e)  => eprintln!("[updater] Ошибка: {}", e),
                         }
+                        tokio::time::sleep(std::time::Duration::from_secs(1800)).await;
                     }
                 });
             }

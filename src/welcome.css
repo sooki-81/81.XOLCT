@@ -157,6 +157,25 @@
   z-index: 1;
 }
 
+/* ── Кнопка-версия (ручная проверка) ────────────────────── */
+.version-check-btn {
+  position: absolute;
+  bottom: 14px;
+  right: 18px;
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  font-family: var(--font-main);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  opacity: 0.5;
+  transition: opacity 0.2s, background 0.2s;
+  z-index: 9;
+}
+.version-check-btn:hover { opacity: 1; background: rgba(255,255,255,0.05); }
+
 /* ── Баннер обновления ──────────────────────────────────── */
 #update-banner {
   position: absolute;
