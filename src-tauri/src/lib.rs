@@ -131,6 +131,25 @@ struct TrayState {
 // ─── Состояние апдейтера ──────────────────────────────────────────────────────
 struct UpdateState(Mutex<Option<String>>);
 
+// ─── Подарки (Supabase) ───────────────────────────────────────────────────────
+const SUPABASE_URL: &str = "https://jdqlsixroffweozmvrfa.supabase.co";
+const SUPABASE_KEY: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpkcWxzaXhyb2Zmd2Vvem12cmZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzkxNDEsImV4cCI6MjA5Mjg1NTE0MX0.mpQxVZxgXtlK_L05kOCHeq93siH3cTzu8swnbMuekcw";
+
+struct MyCodeState(Mutex<String>);
+
+#[derive(Serialize, Deserialize, Clone)]
+struct Gift {
+    id: String,
+    from_id: String,
+    to_id: String,
+    image_url: String,
+    #[serde(default)]
+    message: String,
+    expires_at: String,
+    #[serde(default)]
+    created_at: String,
+}
+
 // ─── Состояние горячих клавиш ─────────────────────────────────────────────────
 struct HotkeyState {
     open:    Mutex<String>,
@@ -1021,6 +1040,205 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// ─── Подарки: утилиты ────────────────────────────────────────────────────────
+fn user_id_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_data_dir().ok().map(|d| d.join("user_id.txt"))
+}
+
+fn load_or_create_user_id(app: &tauri::AppHandle) -> String {
+    if let Some(path) = user_id_path(app) {
+        if path.exists() {
+            if let Ok(id) = fs::read_to_string(&path) {
+                let id = id.trim().to_string();
+                if id.len() == 36 { return id; }
+            }
+        }
+        let id = gen_user_id();
+        let _ = fs::write(&path, &id);
+        id
+    } else {
+        gen_user_id()
+    }
+}
+
+fn gen_user_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static CTR: AtomicU64 = AtomicU64::new(0);
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64;
+    let c = CTR.fetch_add(1, Ordering::Relaxed);
+    let p = std::process::id() as u64;
+    let a = t & 0xFFFF_FFFF;
+    let b = (t >> 32) & 0xFFFF;
+    let cv = 0x4000u64 | ((t >> 48) & 0x0FFF);
+    let d = 0x8000u64 | ((p ^ c) & 0x3FFF);
+    let e = p.wrapping_mul(0x9e37_79b9_7f4a_7c15).wrapping_add(c) & 0xFFFF_FFFF_FFFF;
+    format!("{:08x}-{:04x}-{:04x}-{:04x}-{:012x}", a, b, cv, d, e)
+}
+
+fn unix_to_iso8601(unix: u64) -> String {
+    let mut r = unix;
+    let sec  = r % 60; r /= 60;
+    let min  = r % 60; r /= 60;
+    let hour = r % 24; r /= 24;
+    let mut y = 1970u32;
+    loop {
+        let dy = if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) { 366u64 } else { 365u64 };
+        if r < dy { break; }
+        r -= dy; y += 1;
+    }
+    let leap = y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
+    let dm: [u64; 12] = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut mo = 1u32;
+    for &d in &dm { if r < d { break; } r -= d; mo += 1; }
+    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", y, mo, r + 1, hour, min, sec)
+}
+
+fn now_iso8601() -> String {
+    unix_to_iso8601(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+    )
+}
+
+fn future_iso8601(hours: u32) -> String {
+    unix_to_iso8601(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            + hours as u64 * 3600,
+    )
+}
+
+async fn supabase_get_gifts(user_id: &str) -> Result<Vec<Gift>, String> {
+    let now = now_iso8601();
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/rest/v1/gifts", SUPABASE_URL))
+        .query(&[
+            ("to_id",      format!("eq.{}", user_id)),
+            ("expires_at", format!("gt.{}", now)),
+            ("select",     "*".to_string()),
+            ("order",      "created_at.desc".to_string()),
+        ])
+        .header("Authorization", format!("Bearer {}", SUPABASE_KEY))
+        .header("apikey", SUPABASE_KEY)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    resp.json::<Vec<Gift>>().await.map_err(|e| e.to_string())
+}
+
+async fn supabase_register_user(user_id: &str) {
+    let client = reqwest::Client::new();
+    let _ = client
+        .post(format!("{}/rest/v1/users", SUPABASE_URL))
+        .header("Authorization", format!("Bearer {}", SUPABASE_KEY))
+        .header("apikey", SUPABASE_KEY)
+        .header("Content-Type", "application/json")
+        .header("Prefer", "return=minimal,resolution=ignore-duplicates")
+        .json(&serde_json::json!({ "id": user_id }))
+        .send()
+        .await;
+}
+
+// ─── Подарки: команды ─────────────────────────────────────────────────────────
+#[tauri::command]
+fn get_my_code(state: tauri::State<MyCodeState>) -> String {
+    state.0.lock().unwrap().clone()
+}
+
+#[tauri::command]
+async fn get_incoming_gifts(state: tauri::State<'_, MyCodeState>) -> Result<Vec<Gift>, String> {
+    let user_id = state.0.lock().unwrap().clone();
+    supabase_get_gifts(&user_id).await
+}
+
+#[tauri::command]
+async fn dismiss_gift(gift_id: String) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    client
+        .delete(format!("{}/rest/v1/gifts", SUPABASE_URL))
+        .query(&[("id", format!("eq.{}", gift_id))])
+        .header("Authorization", format!("Bearer {}", SUPABASE_KEY))
+        .header("apikey", SUPABASE_KEY)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn send_gift(
+    state: tauri::State<'_, MyCodeState>,
+    to_id: String,
+    image_path: String,
+    message: String,
+    expires_hours: u32,
+) -> Result<(), String> {
+    let from_id = state.0.lock().unwrap().clone();
+    let bytes = fs::read(&image_path).map_err(|e| format!("Файл не читается: {}", e))?;
+    let ext = std::path::Path::new(&image_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png")
+        .to_lowercase();
+    let ct = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif"          => "image/gif",
+        "webp"         => "image/webp",
+        _              => "image/png",
+    };
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let storage_path = format!("{}/{}.{}", from_id, ts, ext);
+    let client = reqwest::Client::new();
+
+    // 1. Загружаем файл в Supabase Storage
+    let up = client
+        .post(format!("{}/storage/v1/object/gifts/{}", SUPABASE_URL, storage_path))
+        .header("Authorization", format!("Bearer {}", SUPABASE_KEY))
+        .header("apikey", SUPABASE_KEY)
+        .header("Content-Type", ct)
+        .body(bytes)
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка загрузки: {}", e))?;
+    if !up.status().is_success() {
+        return Err(format!("Storage {}: {}", up.status(), up.text().await.unwrap_or_default()));
+    }
+
+    // 2. Записываем подарок в БД
+    let public_url = format!("{}/storage/v1/object/public/gifts/{}", SUPABASE_URL, storage_path);
+    let db = client
+        .post(format!("{}/rest/v1/gifts", SUPABASE_URL))
+        .header("Authorization", format!("Bearer {}", SUPABASE_KEY))
+        .header("apikey", SUPABASE_KEY)
+        .header("Content-Type", "application/json")
+        .header("Prefer", "return=minimal")
+        .json(&serde_json::json!({
+            "from_id":    from_id,
+            "to_id":      to_id,
+            "image_url":  public_url,
+            "message":    message,
+            "expires_at": future_iso8601(expires_hours.max(1)),
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка записи: {}", e))?;
+    if !db.status().is_success() {
+        return Err(format!("DB {}: {}", db.status(), db.text().await.unwrap_or_default()));
+    }
+    Ok(())
+}
+
 // ─── Точка входа ─────────────────────────────────────────────────────────────
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1102,6 +1320,10 @@ pub fn run() {
             clear_icon_selection,
             get_update_version,
             install_update,
+            get_my_code,
+            send_gift,
+            get_incoming_gifts,
+            dismiss_gift,
         ])
         .setup(|app| {
             // ── Встраиваем главное окно в рабочий стол ───────────────────────
@@ -1130,6 +1352,28 @@ pub fn run() {
                                         println!("[wallpaper] Переподключение к рабочему столу...");
                                         unsafe { wallpaper::embed_in_desktop(hwnd); }
                                     }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // ── Код пользователя + фоновый опрос подарков ────────────────────
+            let my_id = load_or_create_user_id(&app.handle());
+            app.manage(MyCodeState(Mutex::new(my_id.clone())));
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    supabase_register_user(&my_id).await;
+                    let mut known: std::collections::HashSet<String> = std::collections::HashSet::new();
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                        if let Ok(gifts) = supabase_get_gifts(&my_id).await {
+                            for g in gifts {
+                                if known.insert(g.id.clone()) {
+                                    println!("[gifts] Новый подарок от {}", g.from_id);
+                                    let _ = handle.emit("gift-received", &g);
                                 }
                             }
                         }

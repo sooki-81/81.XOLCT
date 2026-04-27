@@ -23,6 +23,98 @@ if (btnStart) {
   });
 }
 
+// ── Мой код ───────────────────────────────────────────────────────────────────
+invoke('get_my_code').then(code => {
+  const el = document.getElementById('my-code-value');
+  if (el) el.textContent = code;
+}).catch(() => {});
+
+document.getElementById('btn-copy-code')?.addEventListener('click', async () => {
+  const code = document.getElementById('my-code-value')?.textContent || '';
+  if (code && code !== '…') {
+    await navigator.clipboard.writeText(code);
+    const btn = document.getElementById('btn-copy-code');
+    if (btn) { btn.title = 'Скопировано!'; setTimeout(() => { btn.title = 'Скопировать код'; }, 1500); }
+  }
+});
+
+// ── Отправка подарка ──────────────────────────────────────────────────────────
+let selectedFilePath = null;
+
+document.getElementById('btn-open-gift')?.addEventListener('click', () => {
+  document.getElementById('gift-modal').style.display = 'flex';
+});
+document.getElementById('btn-cancel-gift')?.addEventListener('click', () => {
+  document.getElementById('gift-modal').style.display = 'none';
+  resetGiftForm();
+});
+
+const giftFileArea = document.getElementById('gift-file-area');
+const giftFileInput = document.getElementById('gift-file');
+
+giftFileArea?.addEventListener('click', () => giftFileInput?.click());
+giftFileInput?.addEventListener('change', (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  selectedFilePath = file.path || file.name;
+  const label = document.getElementById('gift-file-label');
+  if (label) label.textContent = file.name;
+  // Показываем превью
+  const reader = new FileReader();
+  reader.onload = ev => {
+    giftFileArea.style.backgroundImage = `url("${ev.target.result}")`;
+    if (label) label.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('btn-send-gift')?.addEventListener('click', async () => {
+  const toId      = document.getElementById('gift-to-id')?.value?.trim();
+  const message   = document.getElementById('gift-message')?.value?.trim() || '';
+  const expires   = parseInt(document.getElementById('gift-expires')?.value || '24');
+  const statusEl  = document.getElementById('gift-status');
+  const btn       = document.getElementById('btn-send-gift');
+
+  if (!selectedFilePath) { if (statusEl) statusEl.textContent = 'Выбери изображение'; return; }
+  if (!toId)             { if (statusEl) statusEl.textContent = 'Введи код друга'; return; }
+
+  if (btn) { btn.textContent = 'Отправляем…'; btn.disabled = true; }
+  if (statusEl) statusEl.textContent = '';
+
+  try {
+    await invoke('send_gift', {
+      toId,
+      imagePath: selectedFilePath,
+      message,
+      expiresHours: expires,
+    });
+    if (statusEl) statusEl.textContent = 'Подарок отправлен!';
+    setTimeout(() => {
+      document.getElementById('gift-modal').style.display = 'none';
+      resetGiftForm();
+    }, 1500);
+  } catch (e) {
+    console.error('[gift]', e);
+    if (statusEl) statusEl.textContent = 'Ошибка: ' + e;
+  } finally {
+    if (btn) { btn.textContent = 'Отправить'; btn.disabled = false; }
+  }
+});
+
+function resetGiftForm() {
+  selectedFilePath = null;
+  const label = document.getElementById('gift-file-label');
+  if (label) { label.textContent = 'Нажмите чтобы выбрать изображение'; label.style.display = ''; }
+  if (giftFileArea) giftFileArea.style.backgroundImage = '';
+  const toId = document.getElementById('gift-to-id');
+  const msg  = document.getElementById('gift-message');
+  if (toId) toId.value = '';
+  if (msg)  msg.value  = '';
+  const status = document.getElementById('gift-status');
+  if (status) status.textContent = '';
+  if (giftFileInput) giftFileInput.value = '';
+}
+
 // ── Обновления ────────────────────────────────────────────────────────────────
 function showUpdateBanner(version) {
   const banner = document.getElementById('update-banner');

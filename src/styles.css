@@ -98,3 +98,8 @@ html, body {
   white-space: nowrap;
   width: 100%;
 }
+
+@keyframes giftIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.92); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
