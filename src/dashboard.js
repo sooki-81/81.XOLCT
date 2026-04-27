@@ -1463,6 +1463,48 @@ giftFormCopy?.addEventListener('click', async () => {
 });
 
 let pendingGift = null;
+let recipientLayout = null;
+let recipientLayoutTimer = null;
+
+// Подгружаем раскладку получателя при вводе/изменении кода
+giftFormToId?.addEventListener('input', () => {
+  clearTimeout(recipientLayoutTimer);
+  recipientLayoutTimer = setTimeout(async () => {
+    const id = giftFormToId.value.trim();
+    if (!id) { recipientLayout = null; return; }
+    try {
+      recipientLayout = await invoke('get_user_layout', { userId: id });
+    } catch (e) {
+      console.warn('[layout]', e);
+      recipientLayout = null;
+    }
+  }, 600);
+});
+
+function renderRecipientLayout() {
+  if (!giftPlaceCanvasEl) return;
+  giftPlaceCanvasEl.querySelectorAll('.gift-recipient-rect').forEach(el => el.remove());
+  if (!recipientLayout || !recipientLayout.length) return;
+  const cw = giftPlaceCanvasEl.clientWidth;
+  const ch = giftPlaceCanvasEl.clientHeight;
+  recipientLayout.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'gift-recipient-rect';
+    Object.assign(div.style, {
+      position: 'absolute',
+      left:   (r.x * cw) + 'px',
+      top:    (r.y * ch) + 'px',
+      width:  Math.max(8, r.w * cw) + 'px',
+      height: Math.max(8, r.h * ch) + 'px',
+      background: 'rgba(255,255,255,0.10)',
+      border: '1px solid rgba(255,255,255,0.18)',
+      borderRadius: '4px',
+      pointerEvents: 'none',
+      zIndex: '1',
+    });
+    giftPlaceCanvasEl.insertBefore(div, giftPlaceCard);
+  });
+}
 
 function openGiftForm() {
   overlay.classList.remove('hidden');
@@ -1518,9 +1560,12 @@ giftFormNext?.addEventListener('click', async () => {
     giftPlaceImage.onload  = () => {
       pendingGift.ratio = (giftPlaceImage.naturalWidth || 1) / (giftPlaceImage.naturalHeight || 1);
       gotoPlacement();
-      requestAnimationFrame(positionPlaceCard);
+      requestAnimationFrame(() => { renderRecipientLayout(); positionPlaceCard(); });
     };
-    giftPlaceImage.onerror = () => { gotoPlacement(); requestAnimationFrame(positionPlaceCard); };
+    giftPlaceImage.onerror = () => {
+      gotoPlacement();
+      requestAnimationFrame(() => { renderRecipientLayout(); positionPlaceCard(); });
+    };
   } catch (e) {
     console.error('[gift]', e);
     giftFormError.textContent = typeof e === 'string' ? e : 'Не удалось загрузить';

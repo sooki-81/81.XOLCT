@@ -28,6 +28,23 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Diagnose signing key
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          $k = $env:TAURI_SIGNING_PRIVATE_KEY
+          if ([string]::IsNullOrEmpty($k)) {
+            Write-Host "::error::TAURI_SIGNING_PRIVATE_KEY is EMPTY (secret not set or empty value)"
+          } else {
+            $len = $k.Length
+            $first = $k.Substring(0, [Math]::Min(6, $len))
+            $last  = if ($len -ge 8) { $k.Substring($len - 8) } else { $k }
+            Write-Host "TAURI_SIGNING_PRIVATE_KEY length: $len (expected ~348)"
+            Write-Host "First chars: $first..."
+            Write-Host "Last chars:  ...$last"
+          }
+
       - name: Build Tauri app
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

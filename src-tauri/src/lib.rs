@@ -167,6 +167,9 @@ struct Gift {
 fn default_pos()   -> f32 { 0.5 }
 fn default_width() -> f32 { 0.15 }
 
+#[derive(Serialize, Deserialize, Clone)]
+struct LayoutRect { x: f32, y: f32, w: f32, h: f32 }
+
 // ─── Состояние горячих клавиш ─────────────────────────────────────────────────
 struct HotkeyState {
     open:    Mutex<String>,
@@ -1258,6 +1261,51 @@ async fn send_gift(
     Ok(())
 }
 
+// ─── Раскладка пользователя для превью у отправителя ────────────────────────
+#[tauri::command]
+async fn publish_my_layout(
+    state: tauri::State<'_, MyCodeState>,
+    positions: Vec<LayoutRect>,
+) -> Result<(), String> {
+    let user_id = state.0.lock().unwrap().clone();
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{}/rest/v1/user_layouts", SUPABASE_URL))
+        .header("Authorization", format!("Bearer {}", SUPABASE_KEY))
+        .header("apikey", SUPABASE_KEY)
+        .header("Content-Type", "application/json")
+        .header("Prefer", "return=minimal,resolution=merge-duplicates")
+        .json(&serde_json::json!({
+            "user_id":    user_id,
+            "layout":     positions,
+            "updated_at": now_iso8601(),
+        }))
+        .send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("layout {}: {}", resp.status(), resp.text().await.unwrap_or_default()));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_user_layout(user_id: String) -> Result<Vec<LayoutRect>, String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/rest/v1/user_layouts", SUPABASE_URL))
+        .query(&[
+            ("user_id", format!("eq.{}", user_id)),
+            ("select",  "layout".to_string()),
+        ])
+        .header("Authorization", format!("Bearer {}", SUPABASE_KEY))
+        .header("apikey", SUPABASE_KEY)
+        .send().await.map_err(|e| e.to_string())?;
+    let arr: Vec<serde_json::Value> = resp.json().await.map_err(|e| e.to_string())?;
+    if arr.is_empty() { return Ok(vec![]); }
+    let layout: Vec<LayoutRect> =
+        serde_json::from_value(arr[0]["layout"].clone()).unwrap_or_default();
+    Ok(layout)
+}
+
 // ─── Точка входа ─────────────────────────────────────────────────────────────
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1344,6 +1392,8 @@ pub fn run() {
             send_gift,
             get_incoming_gifts,
             dismiss_gift,
+            publish_my_layout,
+            get_user_layout,
         ])
         .setup(|app| {
             // ── Встраиваем главное окно в рабочий стол ───────────────────────

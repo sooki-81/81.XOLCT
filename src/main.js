@@ -516,6 +516,32 @@ function removeGift(giftId) {
   if (el) { el.remove(); activeGifts.delete(giftId); }
 }
 
+// Публикация раскладки в Supabase, чтобы отправители видели её в превью
+let _publishLayoutTimer = null;
+function publishLayoutDeferred() {
+  clearTimeout(_publishLayoutTimer);
+  _publishLayoutTimer = setTimeout(async () => {
+    if (!wallEl) return;
+    const cards = wallEl.querySelectorAll('.card-wrapper');
+    const vw = window.innerWidth  || 1920;
+    const vh = window.innerHeight || 1080;
+    const positions = [];
+    cards.forEach(card => {
+      const r = card.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return;
+      // Только видимые в начальной области экрана (примерно)
+      if (r.right < 0 || r.left > vw + 200 || r.bottom < 0 || r.top > vh + 200) return;
+      positions.push({
+        x: Math.max(0, r.left) / vw,
+        y: Math.max(0, r.top)  / vh,
+        w: Math.min(r.width,  vw) / vw,
+        h: Math.min(r.height, vh) / vh,
+      });
+    });
+    try { await invoke('publish_my_layout', { positions }); } catch (e) { console.warn('[layout]', e); }
+  }, 1500);
+}
+
 // ─── Старт ───────────────────────────────────────────────────────────────────
 async function init() {
   await document.fonts.ready;
@@ -539,6 +565,7 @@ async function init() {
   }
 
   await buildWall();
+  publishLayoutDeferred();
 
   // Слушаем новые токены от окна импорта / дашборда
   await listen('token-added', async (event) => {
@@ -558,6 +585,7 @@ async function init() {
     targetY = 0;
     await buildWall();
     applyTransform(false);
+    publishLayoutDeferred();
   });
 
   // Слушаем изменение настроек (из окна настроек — применяем сразу)
