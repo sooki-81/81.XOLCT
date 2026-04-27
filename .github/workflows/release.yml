@@ -54,7 +54,17 @@ jobs:
       - name: List bundle artifacts
         shell: pwsh
         run: |
-          Get-ChildItem "src-tauri/target/release/bundle/msi" | Select-Object Name, Length
+          Write-Host "=== Содержимое src-tauri/target/release/bundle ==="
+          Get-ChildItem -Recurse "src-tauri/target/release/bundle" -ErrorAction SilentlyContinue |
+            Select-Object FullName, Length |
+            Format-Table -AutoSize
+          Write-Host ""
+          Write-Host "=== Tauri CLI version ==="
+          npm exec --no -- tauri --version
+          Write-Host ""
+          Write-Host "=== Updater plugin in deps ==="
+          npm ls tauri-plugin-updater 2>&1 | Select-Object -First 5
+          (Select-String -Path "src-tauri/Cargo.toml" -Pattern "updater") | ForEach-Object { $_.Line }
 
       - name: Generate latest.json
         shell: pwsh
