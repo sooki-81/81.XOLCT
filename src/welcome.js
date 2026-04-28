@@ -5,6 +5,12 @@ const { invoke } = window.__TAURI__.core;
 const { listen }  = window.__TAURI__.event;
 
 const win = getCurrentWindow();
+
+// Если это не первый запуск — сразу переходим на дашборд (welcome больше не нужен)
+invoke('is_first_run').then(isFirst => {
+  if (!isFirst) window.location.href = 'dashboard.html';
+}).catch(() => {});
+
 applyTranslations();
 
 document.getElementById('btn-minimize').addEventListener('click', () => win.minimize());
@@ -18,7 +24,8 @@ document.getElementById('btn-settings')?.addEventListener('click', () => {
 // Переход на экран импорта
 const btnStart = document.getElementById('btn-start');
 if (btnStart) {
-  btnStart.addEventListener('click', () => {
+  btnStart.addEventListener('click', async () => {
+    try { await invoke('mark_first_run_complete'); } catch {}
     window.location.href = 'dashboard.html';
   });
 }

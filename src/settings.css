@@ -292,6 +292,31 @@
   border-color: var(--fg-subtle);
 }
 
+/* ── Сепаратор между секциями ────────────────────────────────── */
+.settings-separator {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  margin: 28px 0;
+  width: 100%;
+}
+
+/* ── Блок «О проекте» ────────────────────────────────────────── */
+.settings-about-title {
+  font-family: var(--font-main);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--fg);
+  margin: 0 0 8px;
+  line-height: 1.3;
+}
+.settings-about-text {
+  font-family: var(--font-main);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg-subtle);
+  margin: 0;
+}
+
 /* ── Мой код для подарков ────────────────────────────────────── */
 .settings-mycode-row {
   display: flex;

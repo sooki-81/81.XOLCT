@@ -1359,19 +1359,16 @@ async function handlePopupAdd() {
 
 // ─── Добавить карточку на холст (вызывается после верификации или пробного) ───
 async function addCardToCanvas(token) {
-  const cardEntry = await new Promise(resolve => {
-    const img = new Image();
-    const onDone = (rw, rh) => resolve({
-      token, rw, rh,
-      dashH: computeBaseDashH(),
-      isPinterest: token.source === 'pinterest',
-      dashX: null, dashY: null, el: null,
-    });
-    img.onload  = () => { const [rw, rh] = getFrameRatio(img.naturalWidth || 1, img.naturalHeight || 1); onDone(rw, rh); };
-    img.onerror = () => onDone(1, 1);
-    img.src = token.display_uri;
-  });
-
+  // Сразу создаём карточку с дефолтным соотношением 3:4 — пользователь видит её мгновенно.
+  // Когда картинка догрузится — обновим ratio и переотрисуем.
+  const cardEntry = {
+    token,
+    rw: 3, rh: 4,
+    dashH: computeBaseDashH(),
+    isPinterest: token.source === 'pinterest',
+    dashX: null, dashY: null, el: null,
+    loading: true,
+  };
   cards.push(cardEntry);
   const vH = viewport.clientHeight || 560;
   cardEntry.dashY = Math.round((vH - cardEntry.dashH) / 2);
@@ -1383,13 +1380,39 @@ async function addCardToCanvas(token) {
     cardEntry.dashX = CANVAS_PAD;
   }
   cardEntry.el = buildCardEl(cardEntry, cards.length - 1);
+  cardEntry.el.classList.add('dash-card-loading');
   canvas.appendChild(cardEntry.el);
   recalcTotalWidth();
   updateScrollThumb();
   renderEmpty();
   markChanged();
-  // Немедленно появляется на стене
   await emit('token-added', token);
+
+  // Параллельно дожимаем настоящее соотношение и пересоздаём карточку без лоадера
+  const img = new Image();
+  img.onload = () => {
+    const [rw, rh] = getFrameRatio(img.naturalWidth || 1, img.naturalHeight || 1);
+    if (rw === cardEntry.rw && rh === cardEntry.rh) {
+      cardEntry.el.classList.remove('dash-card-loading');
+      cardEntry.loading = false;
+      return;
+    }
+    cardEntry.rw = rw;
+    cardEntry.rh = rh;
+    cardEntry.loading = false;
+    const idx = cards.indexOf(cardEntry);
+    const oldEl = cardEntry.el;
+    const newEl = buildCardEl(cardEntry, idx);
+    oldEl.replaceWith(newEl);
+    cardEntry.el = newEl;
+    recalcTotalWidth();
+    updateScrollThumb();
+  };
+  img.onerror = () => {
+    cardEntry.el.classList.remove('dash-card-loading');
+    cardEntry.loading = false;
+  };
+  img.src = token.display_uri;
 }
 
 popupSubmit.addEventListener('click', handlePopupAdd);
@@ -1436,6 +1459,28 @@ const giftFormToId     = document.getElementById('gift-form-toid');
 const giftFormFromName = document.getElementById('gift-form-fromname');
 const giftFormMessage  = document.getElementById('gift-form-message');
 const giftFormExpires  = document.getElementById('gift-form-expires');
+const giftFormExpiresTrigger = document.getElementById('gift-form-expires-trigger');
+const giftFormExpiresLabel   = document.getElementById('gift-form-expires-label');
+const giftFormExpiresMenu    = document.getElementById('gift-form-expires-menu');
+
+// Логика кастомного дропдауна
+giftFormExpiresTrigger?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  giftFormExpires.classList.toggle('open');
+});
+giftFormExpiresMenu?.querySelectorAll('.gift-form-dropdown-option').forEach(opt => {
+  if (opt.dataset.value === giftFormExpires.dataset.value) opt.classList.add('selected');
+  opt.addEventListener('click', () => {
+    giftFormExpires.dataset.value = opt.dataset.value;
+    giftFormExpiresLabel.textContent = opt.textContent;
+    giftFormExpiresMenu.querySelectorAll('.gift-form-dropdown-option').forEach(o => o.classList.remove('selected'));
+    opt.classList.add('selected');
+    giftFormExpires.classList.remove('open');
+  });
+});
+document.addEventListener('click', (e) => {
+  if (!giftFormExpires?.contains(e.target)) giftFormExpires?.classList.remove('open');
+});
 const giftFormError    = document.getElementById('gift-form-error');
 const giftFormMyCode   = document.getElementById('gift-form-mycode');
 const giftFormCopy     = document.getElementById('gift-form-copy');
@@ -1531,7 +1576,7 @@ giftFormNext?.addEventListener('click', async () => {
   const toId     = giftFormToId.value.trim();
   const fromName = giftFormFromName.value.trim();
   const message  = giftFormMessage.value.trim();
-  const hours    = parseInt(giftFormExpires.value || '8');
+  const hours    = parseInt(giftFormExpires.dataset.value || '8');
 
   if (!url)      { giftFormError.textContent = 'Введи ссылку на объект'; return; }
   if (!toId)     { giftFormError.textContent = 'Введи код друга';        return; }

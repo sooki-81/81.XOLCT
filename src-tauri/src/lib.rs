@@ -1,6 +1,6 @@
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem},
-    tray::TrayIconBuilder,
+    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
     Emitter,
     Manager,
 };
@@ -1082,6 +1082,30 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// ─── Первый запуск ────────────────────────────────────────────────────────────
+fn first_run_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_data_dir().ok().map(|d| d.join("first_run.txt"))
+}
+
+#[tauri::command]
+fn is_first_run(app: tauri::AppHandle) -> bool {
+    let Some(path) = first_run_path(&app) else { return true };
+    if path.exists() {
+        return fs::read_to_string(&path).map(|s| s.trim() == "yes").unwrap_or(true);
+    }
+    // Файла нет: считаем что новый пользователь только если ещё нет settings.json
+    let already_used = settings_path(&app).map_or(false, |p| p.exists());
+    let value = if already_used { "no" } else { "yes" };
+    let _ = fs::write(&path, value);
+    value == "yes"
+}
+
+#[tauri::command]
+fn mark_first_run_complete(app: tauri::AppHandle) -> Result<(), String> {
+    let Some(path) = first_run_path(&app) else { return Ok(()) };
+    fs::write(&path, "no").map_err(|e| e.to_string())
+}
+
 // ─── Подарки: утилиты ────────────────────────────────────────────────────────
 fn user_id_path(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_data_dir().ok().map(|d| d.join("user_id.txt"))
@@ -1310,6 +1334,13 @@ async fn get_user_layout(user_id: String) -> Result<Vec<LayoutRect>, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // Повторный запуск — фокусируем существующее окно вместо создания нового процесса
+            if let Some(w) = app.get_webview_window("welcome") {
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
@@ -1394,6 +1425,8 @@ pub fn run() {
             dismiss_gift,
             publish_my_layout,
             get_user_layout,
+            is_first_run,
+            mark_first_run_complete,
         ])
         .setup(|app| {
             // ── Встраиваем главное окно в рабочий стол ───────────────────────
@@ -1520,8 +1553,19 @@ pub fn run() {
             TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
-                .show_menu_on_left_click(true)
+                .show_menu_on_left_click(false)
                 .tooltip("ХОЛСТ")
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button, button_state, .. } = event {
+                        if button == MouseButton::Left && button_state == MouseButtonState::Up {
+                            let app = tray.app_handle();
+                            if let Some(w) = app.get_webview_window("welcome") {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            }
+                        }
+                    }
+                })
                 .on_menu_event(|app, event| {
                     match event.id.as_ref() {
                         "open" => {
@@ -1579,6 +1623,15 @@ pub fn run() {
             });
 
             println!("[tray] Системный трей создан");
+
+            // Если это первый запуск — сразу показываем окно ХОЛСТ
+            if is_first_run(app.handle().clone()) {
+                if let Some(w) = app.get_webview_window("welcome") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())
