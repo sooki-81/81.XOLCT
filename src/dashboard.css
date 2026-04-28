@@ -1159,3 +1159,41 @@
   0%   { transform: translateX(-60%); }
   100% { transform: translateX(60%); }
 }
+
+/* Баннер обновления — фиксирован внизу окна, виден на любой странице */
+.dash-update-banner {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(20, 20, 30, 0.95);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  padding: 10px 16px;
+  backdrop-filter: blur(12px);
+  white-space: nowrap;
+  z-index: 100;
+}
+.dash-update-banner #update-banner-text {
+  font-family: var(--font-main);
+  font-size: 13px;
+  color: var(--fg-subtle);
+}
+.dash-update-banner #btn-update {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--gradient-accent);
+  color: var(--fg);
+  font-family: var(--font-main);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.dash-update-banner #btn-update:hover { opacity: 0.85; }
+.dash-update-banner #btn-update:disabled { opacity: 0.5; cursor: default; }
